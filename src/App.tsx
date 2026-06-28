@@ -197,6 +197,24 @@ export default function App() {
       frame = window.requestAnimationFrame(updateActive);
     };
 
+    const onWheel = (event: WheelEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+
+      if (target?.closest(".search-dropdown")) {
+        return;
+      }
+
+      const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX;
+
+      if (!delta) {
+        return;
+      }
+
+      event.preventDefault();
+      viewport.scrollLeft += delta;
+      onScroll();
+    };
+
     frame = window.requestAnimationFrame(() => {
       const firstCard = cardRefs.current[0];
 
@@ -208,12 +226,14 @@ export default function App() {
     });
     const interval = window.setInterval(updateActive, 120);
     viewport.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("resize", onScroll);
 
     return () => {
       window.clearInterval(interval);
       window.cancelAnimationFrame(frame);
       viewport.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", onScroll);
     };
   }, []);
