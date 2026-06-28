@@ -29,24 +29,19 @@ function TimelineEvent({
   entry,
   index,
   activeIndex,
-  query,
-  isMatch,
   register,
 }: {
   entry: TimelineEntry;
   index: number;
   activeIndex: number;
-  query: string;
-  isMatch: boolean;
   register: (index: number, node: HTMLElement | null) => void;
 }) {
   const distance = Math.abs(activeIndex - index);
   const focusClass = distance === 0 ? "is-active" : distance === 1 ? "is-neighbor" : "is-distant";
-  const matchClass = query && !isMatch ? "is-search-muted" : "";
 
   return (
     <section
-      className={`timeline-event ${focusClass} ${matchClass}`}
+      className={`timeline-event ${focusClass}`}
       ref={(node) => register(index, node)}
       data-entry-id={entry.id}
       aria-label={`${entry.title} timeline event`}
@@ -80,23 +75,23 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const eventRefs = useRef<Array<HTMLElement | null>>([]);
+  const displayKeyRef = useRef("");
   const searchRef = useRef<HTMLInputElement | null>(null);
 
-  const matches = useMemo(() => timelineEntries.map((entry) => entryMatches(entry, query)), [query]);
-  const visibleCount = matches.filter(Boolean).length;
+  const displayEntries = useMemo(
+    () => (query.trim() ? timelineEntries.filter((entry) => entryMatches(entry, query)) : timelineEntries),
+    [query],
+  );
+  const visibleCount = displayEntries.length;
+  const displayKey = displayEntries.map((entry) => entry.id).join("|");
+
+  if (displayKeyRef.current !== displayKey) {
+    displayKeyRef.current = displayKey;
+    eventRefs.current = [];
+  }
 
   const register = useCallback((index: number, node: HTMLElement | null) => {
     eventRefs.current[index] = node;
-  }, []);
-
-  const scrollToIndex = useCallback((index: number) => {
-    const node = eventRefs.current[index];
-    if (!node) {
-      return;
-    }
-
-    const top = node.offsetTop - Math.max((window.innerHeight - node.offsetHeight) / 2, 0);
-    window.scrollTo({ top, behavior: "smooth" });
   }, []);
 
   useEffect(() => {
@@ -140,19 +135,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!query.trim()) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      const nextIndex = timelineEntries.findIndex((entry) => entryMatches(entry, query));
-      if (nextIndex >= 0) {
-        scrollToIndex(nextIndex);
-      }
-    }, 180);
-
-    return () => window.clearTimeout(timeout);
-  }, [query, scrollToIndex]);
+    setActiveIndex(0);
+  }, [displayKey]);
 
   useEffect(() => {
     const onKeydown = (event: KeyboardEvent) => {
@@ -208,17 +192,28 @@ export default function App() {
       </div>
 
       <section id="timeline" className="timeline-stack" aria-label="Vertical Marvel timeline">
-        {timelineEntries.map((entry, index) => (
+        {displayEntries.length ? displayEntries.map((entry, index) => (
           <TimelineEvent
             key={entry.id}
             entry={entry}
             index={index}
             activeIndex={activeIndex}
-            query={query}
-            isMatch={matches[index]}
             register={register}
           />
-        ))}
+        )) : (
+          <section className="timeline-event is-active">
+            <div className="event-frame">
+              <div className="event-axis" aria-hidden="true">
+                <span className="axis-line" />
+                <span className="axis-dot" />
+              </div>
+              <article className="event-copy">
+                <h2>No timeline match</h2>
+                <p className="event-text">Try a movie, show, character, year, or event from the Marvel screen timeline.</p>
+              </article>
+            </div>
+          </section>
+        )}
       </section>
     </main>
   );
