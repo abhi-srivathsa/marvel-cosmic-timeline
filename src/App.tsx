@@ -42,22 +42,42 @@ function centerCard(viewport: HTMLDivElement, card: HTMLElement, behavior: Scrol
 }
 
 function timelineWindow(index: number) {
-  const pointIndexes = index === 0
-    ? [0, 1]
-    : [index - 1, index, index + 1];
+  const pointIndexes = index === 0 ? [0, 1] : [index - 1, index, index + 1];
 
   return pointIndexes
     .filter((item) => item >= 0 && item < timelineEntries.length)
-    .map((item) => ({
-      index: item,
-      slot: item < index ? 1 : item === index ? 2 : 3,
-    }));
+    .map((item) => ({ index: item, role: item < index ? "previous" : item > index ? "next" : "current" }));
 }
+
+type RibbonMarker = {
+  index: number;
+  role: string;
+  x: number;
+};
+
+type RibbonState = {
+  ready: boolean;
+  y: number;
+  lineLeft: number;
+  lineRight: number;
+  fadeLeft: boolean;
+  fadeRight: boolean;
+  markers: RibbonMarker[];
+};
 
 export default function App() {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [ribbonState, setRibbonState] = useState<RibbonState>({
+    ready: false,
+    y: 0,
+    lineLeft: 0,
+    lineRight: 0,
+    fadeLeft: false,
+    fadeRight: false,
+    markers: [],
+  });
   const trackRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -84,6 +104,61 @@ export default function App() {
 
     centerCard(viewport, card);
     setActiveIndex(index);
+  };
+
+  const updateRibbon = (index: number) => {
+    const activeCard = cardRefs.current[index];
+    const poster = activeCard?.querySelector<HTMLElement>(".poster-frame");
+    const copy = activeCard?.querySelector<HTMLElement>(".card-copy");
+
+    if (!activeCard || !poster || !copy) {
+      return;
+    }
+
+    const posterRect = poster.getBoundingClientRect();
+    const copyRect = copy.getBoundingClientRect();
+    const y = posterRect.bottom + (copyRect.top - posterRect.bottom) / 2;
+    const viewportWidth = window.innerWidth;
+
+    const markers = timelineWindow(index)
+      .map((point) => {
+        const card = cardRefs.current[point.index];
+
+        if (!card) {
+          return null;
+        }
+
+        const rect = card.getBoundingClientRect();
+        return {
+          index: point.index,
+          role: point.role,
+          x: rect.left + rect.width / 2,
+        };
+      })
+      .filter((marker): marker is RibbonMarker => Boolean(marker));
+
+    const current = markers.find((marker) => marker.role === "current");
+
+    if (!current) {
+      return;
+    }
+
+    const previous = markers.find((marker) => marker.role === "previous");
+    const next = markers.find((marker) => marker.role === "next");
+    const fadeMargin = 24;
+    const lineLeft = previous ? (previous.x < fadeMargin ? 0 : previous.x) : current.x;
+    const lineRight = next ? (next.x > viewportWidth - fadeMargin ? viewportWidth : next.x) : current.x;
+    const visibleMarkers = markers.filter((marker) => marker.x >= -fadeMargin && marker.x <= viewportWidth + fadeMargin);
+
+    setRibbonState({
+      ready: true,
+      y,
+      lineLeft: Math.max(0, Math.min(lineLeft, viewportWidth)),
+      lineRight: Math.max(0, Math.min(lineRight, viewportWidth)),
+      fadeLeft: Boolean(previous && previous.x < fadeMargin),
+      fadeRight: Boolean(next && next.x > viewportWidth - fadeMargin),
+      markers: visibleMarkers,
+    });
   };
 
   useEffect(() => {
@@ -114,6 +189,7 @@ export default function App() {
       });
 
       setActiveIndex(closestIndex);
+      updateRibbon(closestIndex);
     };
 
     const onScroll = () => {
@@ -237,7 +313,6 @@ export default function App() {
             {timelineEntries.map((entry, index) => {
               const distance = Math.abs(activeIndex - index);
               const focusClass = distance === 0 ? "is-active" : distance === 1 ? "is-neighbor" : "is-distant";
-              const visiblePoints = timelineWindow(index);
               const focusStyle = {
                 opacity: distance === 0 ? 1 : distance === 1 ? 0.45 : 0.18,
                 transform: `scale(${distance === 0 ? 1 : distance === 1 ? 0.88 : 0.78})`,
@@ -259,27 +334,6 @@ export default function App() {
                     <img src={posterFor(entry)} alt={`${entry.title} official poster`} loading={distance < 4 ? "eager" : "lazy"} />
                   </figure>
 
-                  <div
-                    className={`timeline-segment ${index === 0 ? "is-start" : ""} ${index === timelineEntries.length - 1 ? "is-end" : ""}`}
-                    aria-label={`${entry.title} local timeline position`}
-                  >
-                    <div className="segment-line" />
-                    <div className="segment-points">
-                      {visiblePoints.map((point) => (
-                        <button
-                          key={timelineEntries[point.index].id}
-                          className={point.index === index ? "is-current" : point.index > index ? "is-next" : "is-previous"}
-                          style={{ gridColumn: point.slot }}
-                          type="button"
-                          aria-label={`Go to ${timelineEntries[point.index].title}`}
-                          onClick={() => scrollToIndex(point.index)}
-                        >
-                          <span />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
                   <div className="card-copy">
                     <div className="event-meta">
                       <span>{entry.yearLabel}</span>
@@ -294,6 +348,34 @@ export default function App() {
               );
             })}
           </div>
+        </div>
+
+        <div
+          className={`timeline-ribbon ${ribbonState.ready ? "is-ready" : ""} ${ribbonState.fadeLeft ? "has-fade-left" : ""} ${
+            ribbonState.fadeRight ? "has-fade-right" : ""
+          }`}
+          style={{ top: `${ribbonState.y}px` }}
+          aria-label="Visible timeline progress"
+        >
+          <div
+            className="ribbon-line"
+            style={{
+              left: `${Math.min(ribbonState.lineLeft, ribbonState.lineRight)}px`,
+              width: `${Math.abs(ribbonState.lineRight - ribbonState.lineLeft)}px`,
+            }}
+          />
+          {ribbonState.markers.map((marker) => (
+            <button
+              key={timelineEntries[marker.index].id}
+              className={`ribbon-point is-${marker.role}`}
+              type="button"
+              style={{ left: `${marker.x}px` }}
+              aria-label={`Go to ${timelineEntries[marker.index].title}`}
+              onClick={() => scrollToIndex(marker.index)}
+            >
+              <span />
+            </button>
+          ))}
         </div>
       </section>
     </main>

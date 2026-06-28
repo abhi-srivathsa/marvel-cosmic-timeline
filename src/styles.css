@@ -263,8 +263,8 @@ a {
 .timeline-card {
   flex: 0 0 clamp(270px, 34vw, 460px);
   display: grid;
-  grid-template-rows: auto 34px auto;
-  gap: 14px;
+  grid-template-rows: auto auto;
+  gap: clamp(48px, 5.6vh, 60px);
   scroll-snap-align: center;
   transform-origin: center;
   transition:
@@ -295,84 +295,6 @@ a {
   max-width: 460px;
   margin: 0 auto;
   text-align: center;
-}
-
-.timeline-segment {
-  position: relative;
-  display: grid;
-  align-items: center;
-  width: min(260px, 72%);
-  height: 34px;
-  margin: 0 auto;
-  opacity: 0;
-  transition: opacity 320ms ease;
-}
-
-.timeline-card.is-active .timeline-segment {
-  opacity: 1;
-}
-
-.segment-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(247, 244, 239, 0.72), rgba(247, 244, 239, 0.32) 58%, rgba(247, 244, 239, 0));
-}
-
-.timeline-segment.is-start .segment-line {
-  left: 50%;
-}
-
-.timeline-segment.is-end .segment-line {
-  right: 50%;
-}
-
-.segment-points {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(42px, 1fr));
-  align-items: center;
-  width: 100%;
-  height: 34px;
-}
-
-.segment-points button {
-  display: grid;
-  place-items: center;
-  min-width: 0;
-  height: 34px;
-  padding: 0;
-  background: transparent;
-}
-
-.segment-points span {
-  width: 7px;
-  aspect-ratio: 1;
-  background: rgba(247, 244, 239, 0.46);
-  border-radius: 50%;
-  transition:
-    width 220ms ease,
-    background 220ms ease,
-    box-shadow 220ms ease,
-    opacity 220ms ease;
-}
-
-.segment-points .is-current span {
-  width: 13px;
-  background: var(--bone);
-  box-shadow:
-    0 0 0 8px rgba(247, 244, 239, 0.08),
-    0 0 30px rgba(241, 31, 42, 0.42);
-}
-
-.segment-points .is-next span {
-  opacity: 0.58;
-}
-
-.segment-points .is-previous span {
-  opacity: 0.36;
 }
 
 .event-meta {
@@ -427,6 +349,93 @@ a {
   line-height: 1.58;
 }
 
+.timeline-ribbon {
+  position: fixed;
+  z-index: 18;
+  left: 0;
+  width: 100vw;
+  height: 44px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 180ms ease;
+}
+
+.timeline-ribbon.is-ready {
+  opacity: 1;
+}
+
+.ribbon-line {
+  position: absolute;
+  top: 50%;
+  height: 1px;
+  min-width: 0;
+  background: rgba(247, 244, 239, 0.48);
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--fade-left-size, 0),
+    #000 calc(100% - var(--fade-right-size, 0)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--fade-left-size, 0),
+    #000 calc(100% - var(--fade-right-size, 0)),
+    transparent 100%
+  );
+}
+
+.timeline-ribbon.has-fade-left {
+  --fade-left-size: 76px;
+}
+
+.timeline-ribbon.has-fade-right {
+  --fade-right-size: 76px;
+}
+
+.ribbon-point {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  aspect-ratio: 1;
+  padding: 0;
+  background: transparent;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
+.ribbon-point span {
+  width: 7px;
+  aspect-ratio: 1;
+  background: rgba(247, 244, 239, 0.46);
+  border-radius: 50%;
+  transition:
+    width 220ms ease,
+    background 220ms ease,
+    box-shadow 220ms ease,
+    opacity 220ms ease;
+}
+
+.ribbon-point.is-current span {
+  width: 14px;
+  background: var(--bone);
+  box-shadow:
+    0 0 0 15px rgba(247, 244, 239, 0.08),
+    0 0 34px rgba(241, 31, 42, 0.42);
+}
+
+.ribbon-point.is-next span {
+  opacity: 0.58;
+}
+
+.ribbon-point.is-previous span {
+  opacity: 0.36;
+}
+
 @media (max-width: 760px) {
   :root {
     --header-height: 122px;
@@ -459,8 +468,7 @@ a {
 
   .timeline-card {
     flex-basis: min(76vw, 310px);
-    grid-template-rows: auto 32px auto;
-    gap: 12px;
+    gap: 48px;
   }
 
   .poster-frame {
@@ -476,7 +484,11 @@ a {
     display: none;
   }
 
-  .timeline-segment {
-    width: min(220px, 76%);
+  .timeline-ribbon {
+    height: 40px;
+  }
+
+  .ribbon-point {
+    width: 40px;
   }
 }
