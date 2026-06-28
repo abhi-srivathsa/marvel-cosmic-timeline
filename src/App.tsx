@@ -1,6 +1,6 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Search, X } from "lucide-react";
-import { timelineEntries, type TimelineEntry } from "./data/timeline";
+import { eventImagePages, timelineEntries, type TimelineEntry } from "./data/timeline";
 
 type WikiImageState = {
   src: string | null;
@@ -112,10 +112,44 @@ function SpaceCanvas() {
   return <canvas className="space-canvas" ref={canvasRef} aria-hidden="true" />;
 }
 
-function useWikiImage(entry: TimelineEntry): WikiImageState {
+async function fetchFandomImage(pageTitle: string): Promise<string | null> {
+  const endpoint = new URL("https://marvelcinematicuniverse.fandom.com/api.php");
+  endpoint.searchParams.set("action", "query");
+  endpoint.searchParams.set("titles", pageTitle);
+  endpoint.searchParams.set("prop", "pageimages");
+  endpoint.searchParams.set("pithumbsize", "1200");
+  endpoint.searchParams.set("format", "json");
+  endpoint.searchParams.set("origin", "*");
+
+  const response = await fetch(endpoint.toString(), { headers: { accept: "application/json" } });
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = await response.json();
+  const page = Object.values(data?.query?.pages ?? {})[0] as { thumbnail?: { source?: string } } | undefined;
+  return page?.thumbnail?.source ?? null;
+}
+
+async function fetchWikipediaImage(pageTitle: string): Promise<string | null> {
+  const response = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`, {
+    headers: { accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = await response.json();
+  return data?.thumbnail?.source || data?.originalimage?.source || null;
+}
+
+function useTimelineImage(entry: TimelineEntry): WikiImageState {
+  const cacheKey = `${eventImagePages[entry.id] ?? entry.title}::${entry.wikiPage}`;
+
   const [state, setState] = useState<WikiImageState>(() => {
-    if (imageCache.has(entry.wikiPage)) {
-      return { src: imageCache.get(entry.wikiPage) ?? null, loading: false };
+    if (imageCache.has(cacheKey)) {
+      return { src: imageCache.get(cacheKey) ?? null, loading: false };
     }
 
     return { src: null, loading: true };
@@ -124,8 +158,8 @@ function useWikiImage(entry: TimelineEntry): WikiImageState {
   useEffect(() => {
     let active = true;
 
-    if (imageCache.has(entry.wikiPage)) {
-      setState({ src: imageCache.get(entry.wikiPage) ?? null, loading: false });
+    if (imageCache.has(cacheKey)) {
+      setState({ src: imageCache.get(cacheKey) ?? null, loading: false });
       return () => {
         active = false;
       };
@@ -133,19 +167,18 @@ function useWikiImage(entry: TimelineEntry): WikiImageState {
 
     setState({ src: null, loading: true });
 
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(entry.wikiPage)}`, {
-      headers: { accept: "application/json" },
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        const source = data?.thumbnail?.source || data?.originalimage?.source || null;
-        imageCache.set(entry.wikiPage, source);
+    const fandomPage = eventImagePages[entry.id] ?? entry.title;
+
+    fetchFandomImage(fandomPage)
+      .then((source) => source ?? fetchWikipediaImage(entry.wikiPage))
+      .then((source) => {
+        imageCache.set(cacheKey, source);
         if (active) {
           setState({ src: source, loading: false });
         }
       })
       .catch(() => {
-        imageCache.set(entry.wikiPage, null);
+        imageCache.set(cacheKey, null);
         if (active) {
           setState({ src: null, loading: false });
         }
@@ -154,7 +187,7 @@ function useWikiImage(entry: TimelineEntry): WikiImageState {
     return () => {
       active = false;
     };
-  }, [entry.wikiPage]);
+  }, [cacheKey, entry.id, entry.title, entry.wikiPage]);
 
   return state;
 }
@@ -180,7 +213,7 @@ function TimelineCard({
   isMatch: boolean;
   query: string;
 }) {
-  const { src, loading } = useWikiImage(entry);
+  const { src, loading } = useTimelineImage(entry);
 
   return (
     <article

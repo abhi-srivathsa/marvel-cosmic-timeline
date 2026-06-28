@@ -8,7 +8,7 @@ A minimal horizontal timeline website for the Marvel Cinematic Universe and conn
 - Deep-space animated background with a minimal Marvel header.
 - Search by title, character, year, or event, with matched cards highlighted and centered.
 - Timeline data follows Marvel's June 2, 2026 Disney+ Complete MCU Timeline article, with Marvel Television seasons included where they connect to the chronology.
-- Artwork is loaded from public Wikipedia summary images with polished fallbacks for missing title art.
+- Artwork prefers MCU Wiki scene/event images, then falls back to public Wikipedia summary images with polished fallbacks for missing title art.
 
 ## Development
 
