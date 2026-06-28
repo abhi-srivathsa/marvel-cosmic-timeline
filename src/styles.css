@@ -12,7 +12,7 @@
   --muted: rgba(247, 244, 239, 0.62);
   --soft: rgba(247, 244, 239, 0.14);
   --gold: #d7bd83;
-  --header-height: 76px;
+  --header-height: 104px;
 }
 
 * {
@@ -44,6 +44,7 @@ a {
   position: relative;
   min-height: 100vh;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .background-art,
@@ -54,21 +55,21 @@ a {
 }
 
 .background-art {
-  z-index: -4;
+  z-index: 0;
   background-image: url("/brand/marvel-background.webp");
   background-position: center;
   background-size: cover;
-  opacity: 0.16;
-  filter: saturate(0.75) contrast(1.08);
+  opacity: 0.48;
+  filter: saturate(0.9) contrast(1.06);
   transform: scale(1.04);
 }
 
 .background-wash {
-  z-index: -3;
+  z-index: 1;
   background:
-    radial-gradient(circle at 50% 40%, rgba(245, 238, 211, 0.11), transparent 30%),
-    radial-gradient(circle at 52% 42%, rgba(241, 31, 42, 0.12), transparent 24%),
-    linear-gradient(180deg, rgba(4, 4, 9, 0.62), rgba(4, 4, 9, 0.95) 72%, #040409);
+    radial-gradient(circle at 50% 36%, rgba(4, 4, 9, 0.1), transparent 24%),
+    linear-gradient(180deg, rgba(4, 4, 9, 0.42), rgba(4, 4, 9, 0.68) 46%, rgba(4, 4, 9, 0.92) 100%),
+    linear-gradient(90deg, rgba(4, 4, 9, 0.88), rgba(4, 4, 9, 0.4) 50%, rgba(4, 4, 9, 0.88));
 }
 
 .site-header {
@@ -79,13 +80,13 @@ a {
   right: 0;
   display: grid;
   grid-template-columns: minmax(112px, 172px) minmax(220px, 520px);
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
   gap: clamp(18px, 3vw, 48px);
   min-height: var(--header-height);
-  padding: 14px clamp(18px, 4vw, 58px);
-  background: linear-gradient(180deg, rgba(4, 4, 9, 0.94), rgba(4, 4, 9, 0.54) 74%, transparent);
-  backdrop-filter: blur(14px);
+  padding: 18px clamp(18px, 4vw, 58px) 20px;
+  background: linear-gradient(180deg, rgba(4, 4, 9, 0.82), rgba(4, 4, 9, 0.46) 72%, transparent);
+  backdrop-filter: blur(10px);
 }
 
 .marvel-logo {
@@ -201,10 +202,16 @@ a {
   padding: 13px 10px;
 }
 
+.timeline-stage {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+}
+
 .timeline-heading {
-  position: fixed;
-  z-index: 4;
-  top: calc(var(--header-height) + 10px);
+  position: absolute;
+  z-index: 8;
+  top: var(--header-height);
   left: 50%;
   width: min(780px, calc(100% - 36px));
   transform: translateX(-50%);
@@ -230,11 +237,6 @@ a {
   letter-spacing: 0;
 }
 
-.timeline-stage {
-  position: relative;
-  min-height: 100vh;
-}
-
 .timeline-viewport {
   width: 100vw;
   height: 100vh;
@@ -251,18 +253,18 @@ a {
 
 .timeline-track {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: clamp(18px, 3vw, 42px);
   width: max-content;
   height: 100%;
-  padding: 25vh 50vw 12vh;
+  padding: clamp(188px, 22vh, 210px) 50vw 8vh;
 }
 
 .timeline-card {
   flex: 0 0 clamp(270px, 34vw, 460px);
   display: grid;
-  grid-template-rows: auto auto;
-  gap: 18px;
+  grid-template-rows: auto 34px auto;
+  gap: 14px;
   scroll-snap-align: center;
   transform-origin: center;
   transition:
@@ -272,7 +274,7 @@ a {
 }
 
 .poster-frame {
-  width: clamp(230px, 20vw, 300px);
+  width: clamp(190px, min(18vw, 24vh), 250px);
   aspect-ratio: 2 / 3;
   margin: 0 auto;
   overflow: hidden;
@@ -293,6 +295,84 @@ a {
   max-width: 460px;
   margin: 0 auto;
   text-align: center;
+}
+
+.timeline-segment {
+  position: relative;
+  display: grid;
+  align-items: center;
+  width: min(260px, 72%);
+  height: 34px;
+  margin: 0 auto;
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+
+.timeline-card.is-active .timeline-segment {
+  opacity: 1;
+}
+
+.segment-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(247, 244, 239, 0.72), rgba(247, 244, 239, 0.32) 58%, rgba(247, 244, 239, 0));
+}
+
+.timeline-segment.is-start .segment-line {
+  left: 50%;
+}
+
+.timeline-segment.is-end .segment-line {
+  right: 50%;
+}
+
+.segment-points {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(42px, 1fr));
+  align-items: center;
+  width: 100%;
+  height: 34px;
+}
+
+.segment-points button {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+}
+
+.segment-points span {
+  width: 7px;
+  aspect-ratio: 1;
+  background: rgba(247, 244, 239, 0.46);
+  border-radius: 50%;
+  transition:
+    width 220ms ease,
+    background 220ms ease,
+    box-shadow 220ms ease,
+    opacity 220ms ease;
+}
+
+.segment-points .is-current span {
+  width: 13px;
+  background: var(--bone);
+  box-shadow:
+    0 0 0 8px rgba(247, 244, 239, 0.08),
+    0 0 30px rgba(241, 31, 42, 0.42);
+}
+
+.segment-points .is-next span {
+  opacity: 0.58;
+}
+
+.segment-points .is-previous span {
+  opacity: 0.36;
 }
 
 .event-meta {
@@ -347,65 +427,9 @@ a {
   line-height: 1.58;
 }
 
-.timeline-line {
-  position: fixed;
-  z-index: 12;
-  left: clamp(18px, 5vw, 80px);
-  right: clamp(18px, 5vw, 80px);
-  bottom: clamp(6px, 1.25vh, 16px);
-  height: 36px;
-}
-
-.line-track {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 1px;
-  background: rgba(247, 244, 239, 0.24);
-}
-
-.line-points {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(75, minmax(6px, 1fr));
-  align-items: center;
-  height: 100%;
-}
-
-.line-points button {
-  display: grid;
-  place-items: center;
-  min-width: 0;
-  height: 36px;
-  padding: 0;
-  background: transparent;
-}
-
-.line-points span {
-  width: 6px;
-  aspect-ratio: 1;
-  background: rgba(247, 244, 239, 0.48);
-  border-radius: 50%;
-  transition:
-    width 220ms ease,
-    background 220ms ease,
-    box-shadow 220ms ease;
-}
-
-.line-points button:hover span,
-.line-points button:focus-visible span,
-.line-points button.is-current span {
-  width: 13px;
-  background: var(--bone);
-  box-shadow:
-    0 0 0 8px rgba(247, 244, 239, 0.08),
-    0 0 30px rgba(241, 31, 42, 0.48);
-}
-
 @media (max-width: 760px) {
   :root {
-    --header-height: 116px;
+    --header-height: 122px;
   }
 
   .site-header {
@@ -419,7 +443,7 @@ a {
   }
 
   .timeline-heading {
-    top: calc(var(--header-height) + 18px);
+    top: calc(var(--header-height) + 10px);
   }
 
   .timeline-heading h1 {
@@ -429,17 +453,18 @@ a {
   .timeline-track {
     gap: 16px;
     padding-inline: 50vw;
-    padding-top: 26vh;
-    padding-bottom: 13vh;
+    padding-top: clamp(250px, 31vh, 286px);
+    padding-bottom: 8vh;
   }
 
   .timeline-card {
     flex-basis: min(76vw, 310px);
-    gap: 16px;
+    grid-template-rows: auto 32px auto;
+    gap: 12px;
   }
 
   .poster-frame {
-    width: min(68vw, 250px);
+    width: min(56vw, 210px);
   }
 
   .card-copy h2 {
@@ -451,18 +476,7 @@ a {
     display: none;
   }
 
-  .timeline-line {
-    left: 18px;
-    right: 18px;
-  }
-
-  .line-points {
-    grid-template-columns: repeat(75, 10px);
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .line-points::-webkit-scrollbar {
-    display: none;
+  .timeline-segment {
+    width: min(220px, 76%);
   }
 }

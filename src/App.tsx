@@ -41,6 +41,19 @@ function centerCard(viewport: HTMLDivElement, card: HTMLElement, behavior: Scrol
   viewport.scrollTo({ left: nextLeft, behavior });
 }
 
+function timelineWindow(index: number) {
+  const pointIndexes = index === 0
+    ? [0, 1]
+    : [index - 1, index, index + 1];
+
+  return pointIndexes
+    .filter((item) => item >= 0 && item < timelineEntries.length)
+    .map((item) => ({
+      index: item,
+      slot: item < index ? 1 : item === index ? 2 : 3,
+    }));
+}
+
 export default function App() {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -213,17 +226,18 @@ export default function App() {
         </div>
       </header>
 
-      <section className="timeline-heading" aria-label="Timeline overview">
-        <p>Marvel screen chronology</p>
-        <h1>MCU and Marvel TV timeline</h1>
-      </section>
-
       <section id="timeline" className="timeline-stage" aria-label="Horizontal Marvel timeline">
+        <div className="timeline-heading" aria-label="Timeline overview">
+          <p>Marvel screen chronology</p>
+          <h1>MCU and Marvel TV timeline</h1>
+        </div>
+
         <div className="timeline-viewport" ref={viewportRef}>
           <div className="timeline-track" ref={trackRef}>
             {timelineEntries.map((entry, index) => {
               const distance = Math.abs(activeIndex - index);
               const focusClass = distance === 0 ? "is-active" : distance === 1 ? "is-neighbor" : "is-distant";
+              const visiblePoints = timelineWindow(index);
               const focusStyle = {
                 opacity: distance === 0 ? 1 : distance === 1 ? 0.45 : 0.18,
                 transform: `scale(${distance === 0 ? 1 : distance === 1 ? 0.88 : 0.78})`,
@@ -245,6 +259,27 @@ export default function App() {
                     <img src={posterFor(entry)} alt={`${entry.title} official poster`} loading={distance < 4 ? "eager" : "lazy"} />
                   </figure>
 
+                  <div
+                    className={`timeline-segment ${index === 0 ? "is-start" : ""} ${index === timelineEntries.length - 1 ? "is-end" : ""}`}
+                    aria-label={`${entry.title} local timeline position`}
+                  >
+                    <div className="segment-line" />
+                    <div className="segment-points">
+                      {visiblePoints.map((point) => (
+                        <button
+                          key={timelineEntries[point.index].id}
+                          className={point.index === index ? "is-current" : point.index > index ? "is-next" : "is-previous"}
+                          style={{ gridColumn: point.slot }}
+                          type="button"
+                          aria-label={`Go to ${timelineEntries[point.index].title}`}
+                          onClick={() => scrollToIndex(point.index)}
+                        >
+                          <span />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="card-copy">
                     <div className="event-meta">
                       <span>{entry.yearLabel}</span>
@@ -258,23 +293,6 @@ export default function App() {
                 </article>
               );
             })}
-          </div>
-        </div>
-
-        <div className="timeline-line" aria-label="Timeline progress">
-          <div className="line-track" />
-          <div className="line-points">
-            {timelineEntries.map((entry, index) => (
-              <button
-                key={entry.id}
-                className={index === activeIndex ? "is-current" : ""}
-                type="button"
-                aria-label={`Go to ${entry.title}`}
-                onClick={() => scrollToIndex(index)}
-              >
-                <span />
-              </button>
-            ))}
           </div>
         </div>
       </section>
