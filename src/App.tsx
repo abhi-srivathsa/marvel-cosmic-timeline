@@ -38,6 +38,9 @@ function smoothStep(value: number) {
   return t * t * (3 - 2 * t);
 }
 
+const desktopRenderRange = 4;
+const mobileRenderRange = 2;
+
 const depthLanes = [
   { x: 13, y: -3, exitX: 10, rotateY: -7, rotateX: 1.5 },
   { x: -18, y: 1, exitX: -8, rotateY: 8, rotateX: -1 },
@@ -67,6 +70,18 @@ export default function App() {
   const activeEntry = timelineEntries[activeIndex];
   const maxIndex = timelineEntries.length - 1;
   const isMobile = viewportWidth < 760;
+  const renderedEntries = useMemo(() => {
+    const renderRange = isMobile ? mobileRenderRange : desktopRenderRange;
+    const motionIndex = Math.round(motionProgress);
+
+    return timelineEntries
+      .map((entry, index) => ({ entry, index }))
+      .filter(
+        ({ index }) =>
+          Math.abs(index - activeIndex) <= renderRange ||
+          Math.abs(index - motionIndex) <= renderRange,
+      );
+  }, [activeIndex, isMobile, motionProgress]);
 
   const suggestions = useMemo(() => {
     if (!query.trim()) {
@@ -81,8 +96,17 @@ export default function App() {
 
   const scrollToIndex = (index: number) => {
     const nextIndex = clamp(index, 0, maxIndex);
+    const jumpDistance = Math.abs(nextIndex - progressRef.current);
     targetProgressRef.current = nextIndex;
     setActiveIndex(nextIndex);
+
+    if (jumpDistance > desktopRenderRange) {
+      progressRef.current = nextIndex;
+      setMotionProgress(nextIndex);
+      window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = 0;
+      return;
+    }
 
     if (!animationFrameRef.current) {
       animationFrameRef.current = window.requestAnimationFrame(animateProgress);
@@ -297,7 +321,7 @@ export default function App() {
         ref={audioRef}
         src="/audio/the-avengers-ending.mp3"
         loop
-        preload="auto"
+        preload="none"
         onPlay={() => setIsAudioPlaying(true)}
         onPause={() => setIsAudioPlaying(false)}
       />
@@ -379,7 +403,7 @@ export default function App() {
 
         <div className="timeline-viewport" ref={viewportRef}>
           <div className="timeline-track" ref={trackRef}>
-            {timelineEntries.map((entry, index) => {
+            {renderedEntries.map(({ entry, index }) => {
               const local = motionProgress - index;
               const distance = Math.abs(local);
               const lane = depthLanes[index % depthLanes.length];
