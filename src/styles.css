@@ -219,15 +219,6 @@ a {
   pointer-events: none;
 }
 
-.timeline-heading p {
-  margin: 0 0 8px;
-  color: var(--gold);
-  font-size: clamp(0.68rem, 1vw, 0.78rem);
-  line-height: 1.2;
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-}
-
 .timeline-heading h1 {
   margin: 0;
   color: var(--bone);
@@ -243,7 +234,7 @@ a {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  scroll-snap-type: x mandatory;
+  scroll-snap-type: x proximity;
   scroll-padding-inline: 50vw;
 }
 

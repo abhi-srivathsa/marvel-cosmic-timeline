@@ -168,7 +168,10 @@ export default function App() {
       return;
     }
 
-    let frame = 0;
+    let activeFrame = 0;
+    let wheelFrame = 0;
+    let targetLeft = viewport.scrollLeft;
+
     const updateActive = () => {
       const center = viewport.scrollLeft + viewport.clientWidth / 2;
       let closestIndex = 0;
@@ -193,8 +196,27 @@ export default function App() {
     };
 
     const onScroll = () => {
-      window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(updateActive);
+      if (!wheelFrame) {
+        targetLeft = viewport.scrollLeft;
+      }
+
+      window.cancelAnimationFrame(activeFrame);
+      activeFrame = window.requestAnimationFrame(updateActive);
+    };
+
+    const animateWheel = () => {
+      const distance = targetLeft - viewport.scrollLeft;
+
+      if (Math.abs(distance) < 0.5) {
+        viewport.scrollLeft = targetLeft;
+        wheelFrame = 0;
+        onScroll();
+        return;
+      }
+
+      viewport.scrollLeft += distance * 0.18;
+      onScroll();
+      wheelFrame = window.requestAnimationFrame(animateWheel);
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -211,15 +233,19 @@ export default function App() {
       }
 
       event.preventDefault();
-      viewport.scrollLeft += delta;
-      onScroll();
+      targetLeft = clamp(targetLeft + delta * 1.15, 0, viewport.scrollWidth - viewport.clientWidth);
+
+      if (!wheelFrame) {
+        wheelFrame = window.requestAnimationFrame(animateWheel);
+      }
     };
 
-    frame = window.requestAnimationFrame(() => {
+    activeFrame = window.requestAnimationFrame(() => {
       const firstCard = cardRefs.current[0];
 
       if (firstCard) {
         centerCard(viewport, firstCard, "auto");
+        targetLeft = viewport.scrollLeft;
       }
 
       updateActive();
@@ -231,7 +257,8 @@ export default function App() {
 
     return () => {
       window.clearInterval(interval);
-      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(activeFrame);
+      window.cancelAnimationFrame(wheelFrame);
       viewport.removeEventListener("scroll", onScroll);
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", onScroll);
@@ -324,8 +351,7 @@ export default function App() {
 
       <section id="timeline" className="timeline-stage" aria-label="Horizontal Marvel timeline">
         <div className="timeline-heading" aria-label="Timeline overview">
-          <p>Marvel screen chronology</p>
-          <h1>MCU and Marvel TV timeline</h1>
+          <h1>Marvel Cosmic timeline</h1>
         </div>
 
         <div className="timeline-viewport" ref={viewportRef}>
