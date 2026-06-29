@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, Volume2, VolumeX, X } from "lucide-react";
 import { posterImages } from "./data/posterImages";
 import { timelineEntries, type TimelineEntry } from "./data/timeline";
 
@@ -81,7 +81,10 @@ export default function App() {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioPausedByUserRef = useRef(false);
   const cardRefs = useRef<Array<HTMLElement | null>>([]);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
 
   const suggestions = useMemo(() => {
     if (!query.trim()) {
@@ -104,6 +107,41 @@ export default function App() {
 
     centerCard(viewport, card);
     setActiveIndex(index);
+  };
+
+  const playBackgroundAudio = async () => {
+    const audio = audioRef.current;
+
+    if (!audio || audioPausedByUserRef.current) {
+      return;
+    }
+
+    audio.volume = 0.34;
+
+    try {
+      await audio.play();
+      setIsAudioPlaying(true);
+    } catch {
+      setIsAudioPlaying(false);
+    }
+  };
+
+  const toggleBackgroundAudio = () => {
+    const audio = audioRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    if (audio.paused) {
+      audioPausedByUserRef.current = false;
+      void playBackgroundAudio();
+      return;
+    }
+
+    audioPausedByUserRef.current = true;
+    audio.pause();
+    setIsAudioPlaying(false);
   };
 
   const updateRibbon = (index: number) => {
@@ -266,6 +304,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const startAudio = (event: Event) => {
+      const target = event.target instanceof Element ? event.target : null;
+
+      if (target?.closest(".sound-toggle")) {
+        return;
+      }
+
+      void playBackgroundAudio();
+    };
+
+    void playBackgroundAudio();
+    window.addEventListener("pointerdown", startAudio, { once: true });
+    window.addEventListener("keydown", startAudio, { once: true });
+    window.addEventListener("wheel", startAudio, { once: true, passive: true });
+    window.addEventListener("touchstart", startAudio, { once: true, passive: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", startAudio);
+      window.removeEventListener("keydown", startAudio);
+      window.removeEventListener("wheel", startAudio);
+      window.removeEventListener("touchstart", startAudio);
+    };
+  }, []);
+
+  useEffect(() => {
     const onKeydown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -296,56 +359,76 @@ export default function App() {
     <main className="app">
       <div className="background-art" aria-hidden="true" />
       <div className="background-wash" aria-hidden="true" />
+      <audio
+        ref={audioRef}
+        src="/audio/the-avengers-ending.mp3"
+        loop
+        preload="auto"
+        onPlay={() => setIsAudioPlaying(true)}
+        onPause={() => setIsAudioPlaying(false)}
+      />
 
       <header className="site-header">
         <a className="marvel-logo" href="#timeline" aria-label="Marvel timeline home">
           <img src="/brand/marvel-logo-cropped.webp" alt="Marvel" />
         </a>
 
-        <div className="search-area">
-          <div className="search-shell">
-            <Search aria-hidden="true" size={18} strokeWidth={1.6} />
-            <input
-              ref={searchRef}
-              value={query}
-              type="search"
-              aria-label="Search by Marvel event, movie, or TV show"
-              placeholder="Search timeline"
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setSuggestionsOpen(true);
-              }}
-              onFocus={() => setSuggestionsOpen(true)}
-            />
-            {query ? (
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Clear search"
-                onClick={() => {
-                  setQuery("");
-                  setSuggestionsOpen(false);
+        <div className="header-actions">
+          <div className="search-area">
+            <div className="search-shell">
+              <Search aria-hidden="true" size={18} strokeWidth={1.6} />
+              <input
+                ref={searchRef}
+                value={query}
+                type="search"
+                aria-label="Search by Marvel event, movie, or TV show"
+                placeholder="Search timeline"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setSuggestionsOpen(true);
                 }}
-              >
-                <X size={16} strokeWidth={1.8} />
-              </button>
+                onFocus={() => setSuggestionsOpen(true)}
+              />
+              {query ? (
+                <button
+                  className="icon-button"
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => {
+                    setQuery("");
+                    setSuggestionsOpen(false);
+                  }}
+                >
+                  <X size={16} strokeWidth={1.8} />
+                </button>
+              ) : null}
+            </div>
+
+            {suggestionsOpen && query.trim() ? (
+              <div className="search-dropdown">
+                {suggestions.length ? (
+                  suggestions.map(({ entry, index }) => (
+                    <button key={entry.id} type="button" onClick={() => selectSuggestion(index)}>
+                      <span>{entry.title}</span>
+                      <small>{entry.yearLabel} / {entry.medium}</small>
+                    </button>
+                  ))
+                ) : (
+                  <div className="no-results">No matches</div>
+                )}
+              </div>
             ) : null}
           </div>
 
-          {suggestionsOpen && query.trim() ? (
-            <div className="search-dropdown">
-              {suggestions.length ? (
-                suggestions.map(({ entry, index }) => (
-                  <button key={entry.id} type="button" onClick={() => selectSuggestion(index)}>
-                    <span>{entry.title}</span>
-                    <small>{entry.yearLabel} / {entry.medium}</small>
-                  </button>
-                ))
-              ) : (
-                <div className="no-results">No matches</div>
-              )}
-            </div>
-          ) : null}
+          <button
+            className="sound-toggle"
+            type="button"
+            aria-label={isAudioPlaying ? "Pause background music" : "Play background music"}
+            title={isAudioPlaying ? "Pause background music" : "Play background music"}
+            onClick={toggleBackgroundAudio}
+          >
+            {isAudioPlaying ? <Volume2 size={18} strokeWidth={1.7} /> : <VolumeX size={18} strokeWidth={1.7} />}
+          </button>
         </div>
       </header>
 

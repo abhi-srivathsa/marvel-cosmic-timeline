@@ -106,6 +106,13 @@ a {
   position: relative;
 }
 
+.header-actions {
+  display: grid;
+  grid-template-columns: minmax(220px, 520px) 34px;
+  align-items: center;
+  gap: 16px;
+}
+
 .search-shell {
   display: flex;
   align-items: center;
@@ -151,6 +158,24 @@ a {
 .icon-button:hover {
   color: var(--bone);
   background: rgba(255, 255, 255, 0.08);
+}
+
+.sound-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  aspect-ratio: 1;
+  color: rgba(247, 244, 239, 0.7);
+  background: transparent;
+  border: 1px solid rgba(247, 244, 239, 0.16);
+  border-radius: 50%;
+}
+
+.sound-toggle:hover,
+.sound-toggle:focus-visible {
+  color: var(--bone);
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
 }
 
 .search-dropdown {
@@ -436,6 +461,11 @@ a {
     grid-template-columns: 1fr;
     gap: 12px;
     padding: 14px 18px 18px;
+  }
+
+  .header-actions {
+    grid-template-columns: minmax(0, 1fr) 34px;
+    width: 100%;
   }
 
   .marvel-logo {
