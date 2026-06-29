@@ -24,6 +24,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   overflow: hidden;
+  overscroll-behavior: none;
   background: #040409;
 }
 
@@ -48,7 +49,8 @@ a {
 }
 
 .background-art,
-.background-wash {
+.background-wash,
+.cosmic-vectors {
   position: fixed;
   inset: 0;
   pointer-events: none;
@@ -59,17 +61,31 @@ a {
   background-image: url("/brand/marvel-background.webp");
   background-position: center;
   background-size: cover;
-  opacity: 0.48;
-  filter: saturate(0.9) contrast(1.06);
+  opacity: 0.58;
+  filter: saturate(0.96) contrast(1.12);
   transform: scale(1.04);
+  transition: transform 700ms ease;
+  will-change: transform;
 }
 
 .background-wash {
   z-index: 1;
   background:
-    radial-gradient(circle at 50% 36%, rgba(4, 4, 9, 0.1), transparent 24%),
-    linear-gradient(180deg, rgba(4, 4, 9, 0.42), rgba(4, 4, 9, 0.68) 46%, rgba(4, 4, 9, 0.92) 100%),
-    linear-gradient(90deg, rgba(4, 4, 9, 0.88), rgba(4, 4, 9, 0.4) 50%, rgba(4, 4, 9, 0.88));
+    radial-gradient(circle at 50% 38%, rgba(241, 31, 42, 0.13), transparent 19%),
+    radial-gradient(circle at 50% 44%, rgba(215, 189, 131, 0.1), transparent 27%),
+    linear-gradient(180deg, rgba(4, 4, 9, 0.5), rgba(4, 4, 9, 0.7) 44%, rgba(4, 4, 9, 0.96) 100%),
+    linear-gradient(90deg, rgba(4, 4, 9, 0.92), rgba(4, 4, 9, 0.34) 46%, rgba(4, 4, 9, 0.94));
+}
+
+.cosmic-vectors {
+  z-index: 1;
+  opacity: 0.58;
+  background:
+    linear-gradient(115deg, transparent 6%, rgba(247, 244, 239, 0.12) 6.2%, transparent 6.4%),
+    linear-gradient(108deg, transparent 36%, rgba(241, 31, 42, 0.16) 36.2%, transparent 36.5%),
+    linear-gradient(72deg, transparent 65%, rgba(215, 189, 131, 0.12) 65.2%, transparent 65.45%);
+  mix-blend-mode: screen;
+  mask-image: radial-gradient(circle at 50% 45%, #000 0, transparent 67%);
 }
 
 .site-header {
@@ -233,12 +249,51 @@ a {
   min-height: 100vh;
 }
 
+.era-backdrop {
+  position: fixed;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 2px;
+  padding-top: 7vh;
+  color: rgba(247, 244, 239, 0.1);
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.era-kicker,
+.era-title {
+  color: rgba(215, 189, 131, 0.28);
+  font-size: clamp(0.62rem, 0.8vw, 0.78rem);
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.34em;
+}
+
+.era-year {
+  max-width: 96vw;
+  color: rgba(247, 244, 239, 0.07);
+  font-size: clamp(5.6rem, 15vw, 14.5rem);
+  font-weight: 860;
+  line-height: 0.82;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow:
+    0 0 1px rgba(247, 244, 239, 0.24),
+    0 34px 130px rgba(241, 31, 42, 0.18);
+}
+
 .timeline-heading {
   position: absolute;
-  z-index: 8;
+  z-index: 9;
   top: var(--header-height);
   left: 50%;
-  width: min(780px, calc(100% - 36px));
+  width: min(860px, calc(100% - 36px));
   transform: translateX(-50%);
   text-align: center;
   pointer-events: none;
@@ -247,20 +302,21 @@ a {
 .timeline-heading h1 {
   margin: 0;
   color: var(--bone);
-  font-size: clamp(2.05rem, 4vw, 4.7rem);
+  font-size: clamp(2.05rem, 4.3vw, 5rem);
   font-weight: 760;
   line-height: 0.95;
   letter-spacing: 0;
+  text-shadow: 0 22px 70px rgba(0, 0, 0, 0.62);
 }
 
 .timeline-viewport {
+  position: relative;
+  z-index: 6;
   width: 100vw;
   height: 100vh;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
   scrollbar-width: none;
-  scroll-snap-type: x proximity;
-  scroll-padding-inline: 50vw;
+  touch-action: none;
 }
 
 .timeline-viewport::-webkit-scrollbar {
@@ -268,36 +324,53 @@ a {
 }
 
 .timeline-track {
-  display: flex;
-  align-items: flex-start;
-  gap: clamp(18px, 3vw, 42px);
-  width: max-content;
+  position: relative;
+  width: 100%;
   height: 100%;
-  padding: clamp(188px, 22vh, 210px) 50vw 8vh;
+  perspective: 1500px;
+  perspective-origin: 50% 44%;
+  transform-style: preserve-3d;
 }
 
 .timeline-card {
-  flex: 0 0 clamp(270px, 34vw, 460px);
+  position: absolute;
+  top: clamp(158px, 21vh, 190px);
+  left: 50%;
+  width: min(620px, 62vw);
   display: grid;
   grid-template-rows: auto auto;
-  gap: clamp(48px, 5.6vh, 60px);
-  scroll-snap-align: center;
-  transform-origin: center;
+  gap: clamp(40px, 5vh, 54px);
+  transform-origin: center top;
+  transform-style: preserve-3d;
+  will-change: transform, opacity, filter;
   transition:
-    opacity 520ms ease,
-    transform 620ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 520ms ease;
+    opacity 300ms ease,
+    filter 300ms ease;
 }
 
 .poster-frame {
-  width: clamp(190px, min(18vw, 24vh), 250px);
+  position: relative;
+  width: clamp(220px, min(20vw, 39vh), 310px);
   aspect-ratio: 2 / 3;
   margin: 0 auto;
   overflow: hidden;
   border: 1px solid rgba(247, 244, 239, 0.18);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 36px 100px rgba(0, 0, 0, 0.48);
+  box-shadow:
+    0 36px 100px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+}
+
+.poster-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.2), transparent 26%),
+    linear-gradient(180deg, transparent 70%, rgba(4, 4, 9, 0.14));
+  opacity: 0.42;
+  pointer-events: none;
 }
 
 .poster-frame img {
@@ -307,10 +380,27 @@ a {
   object-fit: contain;
 }
 
+.timeline-card.is-active .poster-frame {
+  border-color: rgba(247, 244, 239, 0.34);
+  box-shadow:
+    0 46px 130px rgba(0, 0, 0, 0.72),
+    0 0 80px rgba(241, 31, 42, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+.timeline-card.is-neighbor .card-copy {
+  opacity: 0.72;
+}
+
+.timeline-card.is-distant .card-copy {
+  opacity: 0;
+}
+
 .card-copy {
   max-width: 460px;
   margin: 0 auto;
   text-align: center;
+  transition: opacity 300ms ease;
 }
 
 .event-meta {
@@ -332,10 +422,11 @@ a {
 .card-copy h2 {
   margin: 0;
   color: var(--bone);
-  font-size: clamp(1.7rem, 2.8vw, 3.3rem);
+  font-size: clamp(2rem, 3.4vw, 4.45rem);
   font-weight: 780;
-  line-height: 0.98;
+  line-height: 0.92;
   letter-spacing: 0;
+  text-shadow: 0 24px 90px rgba(0, 0, 0, 0.68);
 }
 
 .card-copy p {
@@ -367,10 +458,10 @@ a {
 
 .timeline-ribbon {
   position: fixed;
-  z-index: 18;
+  z-index: 20;
   left: 0;
   width: 100vw;
-  height: 44px;
+  height: 52px;
   opacity: 0;
   pointer-events: none;
   transform: translateY(-50%);
@@ -384,9 +475,9 @@ a {
 .ribbon-line {
   position: absolute;
   top: 50%;
-  height: 1px;
+  height: 2px;
   min-width: 0;
-  background: rgba(247, 244, 239, 0.48);
+  background: linear-gradient(90deg, rgba(247, 244, 239, 0.36), rgba(247, 244, 239, 0.74), rgba(247, 244, 239, 0.36));
   -webkit-mask-image: linear-gradient(
     90deg,
     transparent 0,
@@ -404,11 +495,11 @@ a {
 }
 
 .timeline-ribbon.has-fade-left {
-  --fade-left-size: 76px;
+  --fade-left-size: 118px;
 }
 
 .timeline-ribbon.has-fade-right {
-  --fade-right-size: 76px;
+  --fade-right-size: 118px;
 }
 
 .ribbon-point {
@@ -425,7 +516,7 @@ a {
 }
 
 .ribbon-point span {
-  width: 7px;
+  width: 8px;
   aspect-ratio: 1;
   background: rgba(247, 244, 239, 0.46);
   border-radius: 50%;
@@ -437,11 +528,11 @@ a {
 }
 
 .ribbon-point.is-current span {
-  width: 14px;
+  width: 16px;
   background: var(--bone);
   box-shadow:
-    0 0 0 15px rgba(247, 244, 239, 0.08),
-    0 0 34px rgba(241, 31, 42, 0.42);
+    0 0 0 18px rgba(247, 244, 239, 0.09),
+    0 0 54px rgba(241, 31, 42, 0.54);
 }
 
 .ribbon-point.is-next span {
@@ -450,6 +541,18 @@ a {
 
 .ribbon-point.is-previous span {
   opacity: 0.36;
+}
+
+.timeline-percent {
+  position: fixed;
+  z-index: 14;
+  left: clamp(18px, 3vw, 54px);
+  bottom: clamp(16px, 3vh, 34px);
+  color: rgba(247, 244, 239, 0.58);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
 }
 
 @media (max-width: 760px) {
@@ -480,24 +583,32 @@ a {
     font-size: clamp(1.8rem, 11vw, 3.4rem);
   }
 
+  .era-backdrop {
+    padding-top: 0;
+  }
+
+  .era-year {
+    font-size: clamp(4.5rem, 24vw, 8rem);
+    white-space: normal;
+  }
+
   .timeline-track {
-    gap: 16px;
-    padding-inline: 50vw;
-    padding-top: clamp(250px, 31vh, 286px);
-    padding-bottom: 8vh;
+    perspective: 1100px;
+    perspective-origin: 50% 42%;
   }
 
   .timeline-card {
-    flex-basis: min(76vw, 310px);
+    top: clamp(218px, 30vh, 272px);
+    width: min(84vw, 360px);
     gap: 48px;
   }
 
   .poster-frame {
-    width: min(56vw, 210px);
+    width: min(54vw, 230px);
   }
 
   .card-copy h2 {
-    font-size: clamp(1.65rem, 8vw, 2.5rem);
+    font-size: clamp(1.85rem, 9vw, 3rem);
   }
 
   .event-text,

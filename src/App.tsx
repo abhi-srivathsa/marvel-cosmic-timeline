@@ -29,18 +29,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function centerCard(viewport: HTMLDivElement, card: HTMLElement, behavior: ScrollBehavior = "smooth") {
-  const nextLeft = card.offsetLeft - viewport.clientWidth / 2 + card.clientWidth / 2;
-
-  if (behavior === "auto") {
-    viewport.scrollLeft = nextLeft;
-    return;
-  }
-
-  viewport.scrollLeft = nextLeft;
-  viewport.scrollTo({ left: nextLeft, behavior });
-}
-
 function timelineWindow(index: number) {
   const pointIndexes = index === 0 ? [0, 1] : [index - 1, index, index + 1];
 
@@ -68,6 +56,10 @@ type RibbonState = {
 export default function App() {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [motionProgress, setMotionProgress] = useState(0);
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window === "undefined" ? 1440 : window.innerWidth,
+  );
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [ribbonState, setRibbonState] = useState<RibbonState>({
     ready: false,
@@ -84,7 +76,12 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioPausedByUserRef = useRef(false);
   const cardRefs = useRef<Array<HTMLElement | null>>([]);
+  const progressRef = useRef(0);
+  const targetProgressRef = useRef(0);
+  const animationFrameRef = useRef(0);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const activeEntry = timelineEntries[activeIndex];
+  const maxIndex = timelineEntries.length - 1;
 
   const suggestions = useMemo(() => {
     if (!query.trim()) {
@@ -98,15 +95,13 @@ export default function App() {
   }, [query]);
 
   const scrollToIndex = (index: number) => {
-    const viewport = viewportRef.current;
-    const card = cardRefs.current[index];
+    const nextIndex = clamp(index, 0, maxIndex);
+    targetProgressRef.current = nextIndex;
+    setActiveIndex(nextIndex);
 
-    if (!viewport || !card) {
-      return;
+    if (!animationFrameRef.current) {
+      animationFrameRef.current = window.requestAnimationFrame(animateProgress);
     }
-
-    centerCard(viewport, card);
-    setActiveIndex(index);
   };
 
   const playBackgroundAudio = async () => {
@@ -199,6 +194,23 @@ export default function App() {
     });
   };
 
+  const animateProgress = () => {
+    const distance = targetProgressRef.current - progressRef.current;
+
+    if (Math.abs(distance) < 0.002) {
+      progressRef.current = targetProgressRef.current;
+      setMotionProgress(progressRef.current);
+      setActiveIndex(Math.round(progressRef.current));
+      animationFrameRef.current = 0;
+      return;
+    }
+
+    progressRef.current += distance * 0.11;
+    setMotionProgress(progressRef.current);
+    setActiveIndex(Math.round(progressRef.current));
+    animationFrameRef.current = window.requestAnimationFrame(animateProgress);
+  };
+
   useEffect(() => {
     const viewport = viewportRef.current;
 
@@ -206,56 +218,8 @@ export default function App() {
       return;
     }
 
-    let activeFrame = 0;
-    let wheelFrame = 0;
-    let targetLeft = viewport.scrollLeft;
-
-    const updateActive = () => {
-      const center = viewport.scrollLeft + viewport.clientWidth / 2;
-      let closestIndex = 0;
-      let closestDistance = Number.POSITIVE_INFINITY;
-
-      cardRefs.current.forEach((card, index) => {
-        if (!card) {
-          return;
-        }
-
-        const cardCenter = card.offsetLeft + card.clientWidth / 2;
-        const distance = Math.abs(cardCenter - center);
-
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestIndex = index;
-        }
-      });
-
-      setActiveIndex(closestIndex);
-      updateRibbon(closestIndex);
-    };
-
-    const onScroll = () => {
-      if (!wheelFrame) {
-        targetLeft = viewport.scrollLeft;
-      }
-
-      window.cancelAnimationFrame(activeFrame);
-      activeFrame = window.requestAnimationFrame(updateActive);
-    };
-
-    const animateWheel = () => {
-      const distance = targetLeft - viewport.scrollLeft;
-
-      if (Math.abs(distance) < 0.5) {
-        viewport.scrollLeft = targetLeft;
-        wheelFrame = 0;
-        onScroll();
-        return;
-      }
-
-      viewport.scrollLeft += distance * 0.18;
-      onScroll();
-      wheelFrame = window.requestAnimationFrame(animateWheel);
-    };
+    let touchStartY = 0;
+    let touchStartX = 0;
 
     const onWheel = (event: WheelEvent) => {
       const target = event.target instanceof Element ? event.target : null;
@@ -271,37 +235,75 @@ export default function App() {
       }
 
       event.preventDefault();
-      targetLeft = clamp(targetLeft + delta * 1.15, 0, viewport.scrollWidth - viewport.clientWidth);
+      targetProgressRef.current = clamp(targetProgressRef.current + delta / 620, 0, maxIndex);
 
-      if (!wheelFrame) {
-        wheelFrame = window.requestAnimationFrame(animateWheel);
+      if (!animationFrameRef.current) {
+        animationFrameRef.current = window.requestAnimationFrame(animateProgress);
       }
     };
 
-    activeFrame = window.requestAnimationFrame(() => {
-      const firstCard = cardRefs.current[0];
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY ?? 0;
+      touchStartX = event.touches[0]?.clientX ?? 0;
+    };
 
-      if (firstCard) {
-        centerCard(viewport, firstCard, "auto");
-        targetLeft = viewport.scrollLeft;
+    const onTouchMove = (event: TouchEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+
+      if (target?.closest(".search-dropdown")) {
+        return;
       }
 
-      updateActive();
-    });
-    const interval = window.setInterval(updateActive, 120);
-    viewport.addEventListener("scroll", onScroll, { passive: true });
+      const touch = event.touches[0];
+
+      if (!touch) {
+        return;
+      }
+
+      const deltaY = touchStartY - touch.clientY;
+      const deltaX = touchStartX - touch.clientX;
+      const dominantDelta = Math.abs(deltaY) > Math.abs(deltaX) ? deltaY : deltaX;
+
+      if (Math.abs(dominantDelta) < 2) {
+        return;
+      }
+
+      event.preventDefault();
+      targetProgressRef.current = clamp(targetProgressRef.current + dominantDelta / 260, 0, maxIndex);
+      touchStartY = touch.clientY;
+      touchStartX = touch.clientX;
+
+      if (!animationFrameRef.current) {
+        animationFrameRef.current = window.requestAnimationFrame(animateProgress);
+      }
+    };
+
+    const onResize = () => {
+      setViewportWidth(window.innerWidth);
+      window.requestAnimationFrame(() => updateRibbon(Math.round(progressRef.current)));
+    };
+
+    const ribbonFrame = window.requestAnimationFrame(() => updateRibbon(0));
     window.addEventListener("wheel", onWheel, { passive: false });
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("resize", onResize);
 
     return () => {
-      window.clearInterval(interval);
-      window.cancelAnimationFrame(activeFrame);
-      window.cancelAnimationFrame(wheelFrame);
-      viewport.removeEventListener("scroll", onScroll);
+      window.cancelAnimationFrame(ribbonFrame);
+      window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = 0;
       window.removeEventListener("wheel", onWheel);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("resize", onResize);
     };
-  }, []);
+  }, [maxIndex]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => updateRibbon(activeIndex));
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeIndex, motionProgress, viewportWidth]);
 
   useEffect(() => {
     const startAudio = (event: Event) => {
@@ -355,10 +357,22 @@ export default function App() {
     searchRef.current?.blur();
   };
 
+  const progressPercent = Math.round((activeIndex / maxIndex) * 100);
+  const cardTravel = viewportWidth < 760 ? viewportWidth * 0.5 : clamp(viewportWidth * 0.38, 430, 640);
+
   return (
     <main className="app">
-      <div className="background-art" aria-hidden="true" />
+      <div
+        className="background-art"
+        aria-hidden="true"
+        style={{
+          transform: `scale(1.08) translate3d(${Math.sin(motionProgress * 0.38) * -18}px, ${
+            Math.cos(motionProgress * 0.22) * 8
+          }px, 0)`,
+        }}
+      />
       <div className="background-wash" aria-hidden="true" />
+      <div className="cosmic-vectors" aria-hidden="true" />
       <audio
         ref={audioRef}
         src="/audio/the-avengers-ending.mp3"
@@ -433,6 +447,12 @@ export default function App() {
       </header>
 
       <section id="timeline" className="timeline-stage" aria-label="Horizontal Marvel timeline">
+        <div className="era-backdrop" aria-hidden="true">
+          <span className="era-kicker">{activeEntry.medium}</span>
+          <span className="era-year">{activeEntry.yearLabel}</span>
+          <span className="era-title">{activeEntry.chapter}</span>
+        </div>
+
         <div className="timeline-heading" aria-label="Timeline overview">
           <h1>Marvel Cosmic timeline</h1>
         </div>
@@ -440,12 +460,23 @@ export default function App() {
         <div className="timeline-viewport" ref={viewportRef}>
           <div className="timeline-track" ref={trackRef}>
             {timelineEntries.map((entry, index) => {
-              const distance = Math.abs(activeIndex - index);
-              const focusClass = distance === 0 ? "is-active" : distance === 1 ? "is-neighbor" : "is-distant";
+              const offset = index - motionProgress;
+              const limitedOffset = clamp(offset, -2.4, 2.4);
+              const distance = Math.abs(offset);
+              const focusClass = distance < 0.5 ? "is-active" : distance < 1.5 ? "is-neighbor" : "is-distant";
+              const scale = clamp(1 - distance * 0.17, 0.56, 1);
+              const opacity = distance < 0.75 ? 1 : distance < 1.65 ? 0.42 : distance < 2.18 ? 0.14 : 0;
               const focusStyle = {
-                opacity: distance === 0 ? 1 : distance === 1 ? 0.45 : 0.18,
-                transform: `scale(${distance === 0 ? 1 : distance === 1 ? 0.88 : 0.78})`,
-                filter: distance === 0 ? "saturate(1) blur(0)" : distance === 1 ? "saturate(0.82) blur(0)" : "saturate(0.72) blur(0.5px)",
+                opacity,
+                zIndex: Math.round(100 - distance * 12),
+                pointerEvents: distance < 0.9 ? "auto" : "none",
+                transform: `translate3d(calc(-50% + ${limitedOffset * cardTravel}px), ${Math.abs(limitedOffset) * 18}px, ${
+                  Math.abs(limitedOffset) * -240
+                }px) rotateY(${limitedOffset * -18}deg) rotateZ(${limitedOffset * 1.2}deg) scale(${scale})`,
+                filter:
+                  distance < 0.6
+                    ? "saturate(1.08) contrast(1.04) blur(0)"
+                    : `saturate(${clamp(1 - distance * 0.16, 0.62, 1)}) contrast(0.92) blur(${clamp(distance * 0.8, 0, 1.8)}px)`,
               } as CSSProperties;
 
               return (
@@ -460,7 +491,7 @@ export default function App() {
                   aria-label={`${entry.title} timeline event`}
                 >
                   <figure className="poster-frame">
-                    <img src={posterFor(entry)} alt={`${entry.title} official poster`} loading={distance < 4 ? "eager" : "lazy"} />
+                    <img src={posterFor(entry)} alt={`${entry.title} official poster`} loading={distance < 3 ? "eager" : "lazy"} />
                   </figure>
 
                   <div className="card-copy">
@@ -506,6 +537,8 @@ export default function App() {
             </button>
           ))}
         </div>
+
+        <div className="timeline-percent" aria-hidden="true">[{progressPercent}%]</div>
       </section>
     </main>
   );
