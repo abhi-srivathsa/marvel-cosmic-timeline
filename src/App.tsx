@@ -59,13 +59,17 @@ type RibbonMarker = {
   index: number;
   role: string;
   x: number;
+  y: number;
+  scale: number;
+  opacity: number;
 };
 
 type RibbonState = {
   ready: boolean;
-  y: number;
   lineLeft: number;
-  lineRight: number;
+  lineTop: number;
+  lineLength: number;
+  lineAngle: number;
   fadeLeft: boolean;
   fadeRight: boolean;
   markers: RibbonMarker[];
@@ -81,9 +85,10 @@ export default function App() {
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [ribbonState, setRibbonState] = useState<RibbonState>({
     ready: false,
-    y: 0,
     lineLeft: 0,
-    lineRight: 0,
+    lineTop: 0,
+    lineLength: 0,
+    lineAngle: 0,
     fadeLeft: false,
     fadeRight: false,
     markers: [],
@@ -159,20 +164,31 @@ export default function App() {
   const updateRibbon = (index: number) => {
     const width = window.innerWidth;
     const height = window.innerHeight;
-    const y = height * (width < 760 ? 0.74 : 0.69);
+    const mobile = width < 760;
+
     const markers = timelineWindow(index).map((point) => {
       const isLandingPair = index === 0;
-      const x =
-        point.role === "current"
-          ? width * 0.5
-          : point.role === "previous"
-            ? width * 0.22
-            : width * (isLandingPair ? 0.75 : 0.78);
+      const rail = mobile
+        ? {
+            previous: { x: 26, y: height * 0.8, scale: 0.64, opacity: 0.34 },
+            current: { x: 52, y: height * 0.74, scale: 1, opacity: 1 },
+            next: { x: isLandingPair ? 105 : 118, y: height * 0.64, scale: 0.56, opacity: 0.46 },
+          }
+        : {
+            previous: { x: 44, y: height * 0.78, scale: 0.62, opacity: 0.32 },
+            current: { x: 92, y: height * 0.68, scale: 1, opacity: 1 },
+            next: { x: isLandingPair ? 185 : 210, y: height * 0.53, scale: 0.54, opacity: 0.42 },
+          };
+
+      const position = rail[point.role as keyof typeof rail];
 
       return {
         index: point.index,
         role: point.role,
-        x: clamp(x, 28, width - 28),
+        x: clamp(position.x, 18, width - 18),
+        y: position.y,
+        scale: position.scale,
+        opacity: position.opacity,
       };
     });
 
@@ -184,14 +200,17 @@ export default function App() {
 
     const previous = markers.find((marker) => marker.role === "previous");
     const next = markers.find((marker) => marker.role === "next");
-    const lineLeft = previous?.x ?? current.x;
-    const lineRight = next?.x ?? current.x;
+    const start = markers[0];
+    const end = markers[markers.length - 1];
+    const deltaX = end.x - start.x;
+    const deltaY = end.y - start.y;
 
     setRibbonState({
       ready: true,
-      y,
-      lineLeft: clamp(lineLeft, 0, width),
-      lineRight: clamp(lineRight, 0, width),
+      lineLeft: start.x,
+      lineTop: start.y,
+      lineLength: Math.hypot(deltaX, deltaY),
+      lineAngle: (Math.atan2(deltaY, deltaX) * 180) / Math.PI,
       fadeLeft: Boolean(previous),
       fadeRight: Boolean(next),
       markers,
@@ -469,16 +488,15 @@ export default function App() {
               const pass = smoothStep(local / 0.82);
               const focus = clamp(1 - distance / 0.72, 0, 1);
               const enteringOpacity = smoothStep((local + 1.12) / 0.3);
-              const exitingOpacity = 1 - smoothStep((local - 0.62) / 0.28);
+              const exitingOpacity = 1 - smoothStep((local - 0.46) / 0.22);
               const opacity = clamp(enteringOpacity * exitingOpacity, 0, 1);
               const horizontalDamping = viewportWidth < 760 ? 0.28 : 1;
               const x = (mix(lane.x * 1.45, lane.x, approach) + lane.exitX * pass) * horizontalDamping;
               const y = mix(lane.y + 8, lane.y, approach) - 10 * pass;
-              const z = local < 0 ? mix(-1280, 0, approach) : mix(0, 760, pass);
-              const scale = local < 0 ? mix(0.78, 1, approach) : mix(1, 1.08, pass);
+              const z = local < 0 ? mix(-1280, 0, approach) : mix(0, 620, pass);
+              const scale = local < 0 ? mix(0.78, 1, approach) : mix(1, 1.04, pass);
               const rotateY = mix(lane.rotateY * 1.4, lane.rotateY, approach) + lane.rotateY * pass * 0.8;
               const rotateX = mix(lane.rotateX * 1.2, lane.rotateX, approach) - 2 * pass;
-              const blur = local < -0.45 ? mix(5, 0, approach) : mix(0, 6, pass);
               const focusClass =
                 index === activeIndex ? "is-active" : local > -1.12 && local < 0.9 ? "is-neighbor" : "is-distant";
               const isTextFlight = index > 0 && (index % 5 === 2 || index % 6 === 4);
@@ -487,7 +505,6 @@ export default function App() {
                 zIndex: Math.round(1000 + z),
                 pointerEvents: focus > 0.45 ? "auto" : "none",
                 transform: `translate3d(calc(-50% + ${x}vw), calc(-50% + ${y}vh), ${z}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`,
-                filter: `saturate(${mix(0.72, 1.14, approach)}) contrast(${mix(0.86, 1.05, focus)}) blur(${blur}px)`,
                 "--focus": focus,
                 "--pass": pass,
               } as CSSProperties & Record<string, string | number>;
@@ -524,14 +541,15 @@ export default function App() {
           className={`timeline-ribbon ${ribbonState.ready ? "is-ready" : ""} ${ribbonState.fadeLeft ? "has-fade-left" : ""} ${
             ribbonState.fadeRight ? "has-fade-right" : ""
           }`}
-          style={{ top: `${ribbonState.y}px` }}
           aria-label="Visible timeline progress"
         >
           <div
             className="ribbon-line"
             style={{
-              left: `${Math.min(ribbonState.lineLeft, ribbonState.lineRight)}px`,
-              width: `${Math.abs(ribbonState.lineRight - ribbonState.lineLeft)}px`,
+              left: `${ribbonState.lineLeft}px`,
+              top: `${ribbonState.lineTop}px`,
+              width: `${ribbonState.lineLength}px`,
+              transform: `rotate(${ribbonState.lineAngle}deg)`,
             }}
           />
           {ribbonState.markers.map((marker) => (
@@ -539,7 +557,12 @@ export default function App() {
               key={timelineEntries[marker.index].id}
               className={`ribbon-point is-${marker.role}`}
               type="button"
-              style={{ left: `${marker.x}px` }}
+              style={{
+                left: `${marker.x}px`,
+                top: `${marker.y}px`,
+                opacity: marker.opacity,
+                "--marker-scale": marker.scale,
+              } as CSSProperties & { "--marker-scale": number }}
               aria-label={`Go to ${timelineEntries[marker.index].title}`}
               onClick={() => scrollToIndex(marker.index)}
             >
