@@ -47,34 +47,6 @@ const depthLanes = [
   { x: 0, y: -1, exitX: 0, rotateY: 0, rotateX: 0 },
 ];
 
-function timelineWindow(index: number) {
-  const pointIndexes = index === 0 ? [0, 1] : [index - 1, index, index + 1];
-
-  return pointIndexes
-    .filter((item) => item >= 0 && item < timelineEntries.length)
-    .map((item) => ({ index: item, role: item < index ? "previous" : item > index ? "next" : "current" }));
-}
-
-type RibbonMarker = {
-  index: number;
-  role: string;
-  x: number;
-  y: number;
-  scale: number;
-  opacity: number;
-};
-
-type RibbonState = {
-  ready: boolean;
-  lineLeft: number;
-  lineTop: number;
-  lineLength: number;
-  lineAngle: number;
-  fadeLeft: boolean;
-  fadeRight: boolean;
-  markers: RibbonMarker[];
-};
-
 export default function App() {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -83,16 +55,6 @@ export default function App() {
     typeof window === "undefined" ? 1440 : window.innerWidth,
   );
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  const [ribbonState, setRibbonState] = useState<RibbonState>({
-    ready: false,
-    lineLeft: 0,
-    lineTop: 0,
-    lineLength: 0,
-    lineAngle: 0,
-    fadeLeft: false,
-    fadeRight: false,
-    markers: [],
-  });
   const trackRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -104,6 +66,7 @@ export default function App() {
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const activeEntry = timelineEntries[activeIndex];
   const maxIndex = timelineEntries.length - 1;
+  const isMobile = viewportWidth < 760;
 
   const suggestions = useMemo(() => {
     if (!query.trim()) {
@@ -159,62 +122,6 @@ export default function App() {
     audioPausedByUserRef.current = true;
     audio.pause();
     setIsAudioPlaying(false);
-  };
-
-  const updateRibbon = (index: number) => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    const mobile = width < 760;
-
-    const markers = timelineWindow(index).map((point) => {
-      const isLandingPair = index === 0;
-      const rail = mobile
-        ? {
-            previous: { x: 26, y: height * 0.8, scale: 0.64, opacity: 0.34 },
-            current: { x: 52, y: height * 0.74, scale: 1, opacity: 1 },
-            next: { x: isLandingPair ? 105 : 118, y: height * 0.64, scale: 0.56, opacity: 0.46 },
-          }
-        : {
-            previous: { x: 44, y: height * 0.78, scale: 0.62, opacity: 0.32 },
-            current: { x: 92, y: height * 0.68, scale: 1, opacity: 1 },
-            next: { x: isLandingPair ? 185 : 210, y: height * 0.53, scale: 0.54, opacity: 0.42 },
-          };
-
-      const position = rail[point.role as keyof typeof rail];
-
-      return {
-        index: point.index,
-        role: point.role,
-        x: clamp(position.x, 18, width - 18),
-        y: position.y,
-        scale: position.scale,
-        opacity: position.opacity,
-      };
-    });
-
-    const current = markers.find((marker) => marker.role === "current");
-
-    if (!current) {
-      return;
-    }
-
-    const previous = markers.find((marker) => marker.role === "previous");
-    const next = markers.find((marker) => marker.role === "next");
-    const start = markers[0];
-    const end = markers[markers.length - 1];
-    const deltaX = end.x - start.x;
-    const deltaY = end.y - start.y;
-
-    setRibbonState({
-      ready: true,
-      lineLeft: start.x,
-      lineTop: start.y,
-      lineLength: Math.hypot(deltaX, deltaY),
-      lineAngle: (Math.atan2(deltaY, deltaX) * 180) / Math.PI,
-      fadeLeft: Boolean(previous),
-      fadeRight: Boolean(next),
-      markers,
-    });
   };
 
   const animateProgress = () => {
@@ -303,17 +210,14 @@ export default function App() {
 
     const onResize = () => {
       setViewportWidth(window.innerWidth);
-      window.requestAnimationFrame(() => updateRibbon(Math.round(progressRef.current)));
     };
 
-    const ribbonFrame = window.requestAnimationFrame(() => updateRibbon(0));
     window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener("resize", onResize);
 
     return () => {
-      window.cancelAnimationFrame(ribbonFrame);
       window.cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = 0;
       window.removeEventListener("wheel", onWheel);
@@ -322,11 +226,6 @@ export default function App() {
       window.removeEventListener("resize", onResize);
     };
   }, [maxIndex]);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => updateRibbon(activeIndex));
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeIndex, motionProgress, viewportWidth]);
 
   useEffect(() => {
     const startAudio = (event: Event) => {
@@ -490,16 +389,15 @@ export default function App() {
               const enteringOpacity = smoothStep((local + 1.12) / 0.3);
               const exitingOpacity = 1 - smoothStep((local - 0.46) / 0.22);
               const opacity = clamp(enteringOpacity * exitingOpacity, 0, 1);
-              const horizontalDamping = viewportWidth < 760 ? 0.28 : 1;
-              const x = (mix(lane.x * 1.45, lane.x, approach) + lane.exitX * pass) * horizontalDamping;
-              const y = mix(lane.y + 8, lane.y, approach) - 10 * pass;
-              const z = local < 0 ? mix(-1280, 0, approach) : mix(0, 620, pass);
-              const scale = local < 0 ? mix(0.78, 1, approach) : mix(1, 1.04, pass);
-              const rotateY = mix(lane.rotateY * 1.4, lane.rotateY, approach) + lane.rotateY * pass * 0.8;
-              const rotateX = mix(lane.rotateX * 1.2, lane.rotateX, approach) - 2 * pass;
+              const x = isMobile ? 0 : mix(lane.x * 1.45, lane.x, approach) + lane.exitX * pass;
+              const y = isMobile ? mix(7, 3.5, approach) - 2 * pass : mix(lane.y + 8, lane.y, approach) - 10 * pass;
+              const z = local < 0 ? mix(isMobile ? -760 : -1280, 0, approach) : mix(0, isMobile ? 420 : 620, pass);
+              const scale = local < 0 ? mix(isMobile ? 0.84 : 0.78, 1, approach) : mix(1, isMobile ? 1.01 : 1.04, pass);
+              const rotateY = isMobile ? 0 : mix(lane.rotateY * 1.4, lane.rotateY, approach) + lane.rotateY * pass * 0.8;
+              const rotateX = isMobile ? -0.6 * pass : mix(lane.rotateX * 1.2, lane.rotateX, approach) - 2 * pass;
               const focusClass =
                 index === activeIndex ? "is-active" : local > -1.12 && local < 0.9 ? "is-neighbor" : "is-distant";
-              const isTextFlight = index > 0 && (index % 5 === 2 || index % 6 === 4);
+              const isTextFlight = !isMobile && index > 0 && (index % 5 === 2 || index % 6 === 4);
               const focusStyle = {
                 opacity,
                 zIndex: Math.round(1000 + z),
@@ -535,40 +433,6 @@ export default function App() {
               );
             })}
           </div>
-        </div>
-
-        <div
-          className={`timeline-ribbon ${ribbonState.ready ? "is-ready" : ""} ${ribbonState.fadeLeft ? "has-fade-left" : ""} ${
-            ribbonState.fadeRight ? "has-fade-right" : ""
-          }`}
-          aria-label="Visible timeline progress"
-        >
-          <div
-            className="ribbon-line"
-            style={{
-              left: `${ribbonState.lineLeft}px`,
-              top: `${ribbonState.lineTop}px`,
-              width: `${ribbonState.lineLength}px`,
-              transform: `rotate(${ribbonState.lineAngle}deg)`,
-            }}
-          />
-          {ribbonState.markers.map((marker) => (
-            <button
-              key={timelineEntries[marker.index].id}
-              className={`ribbon-point is-${marker.role}`}
-              type="button"
-              style={{
-                left: `${marker.x}px`,
-                top: `${marker.y}px`,
-                opacity: marker.opacity,
-                "--marker-scale": marker.scale,
-              } as CSSProperties & { "--marker-scale": number }}
-              aria-label={`Go to ${timelineEntries[marker.index].title}`}
-              onClick={() => scrollToIndex(marker.index)}
-            >
-              <span />
-            </button>
-          ))}
         </div>
 
         <div className="timeline-percent" aria-hidden="true">[{progressPercent}%]</div>
