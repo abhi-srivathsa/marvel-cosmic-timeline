@@ -29,6 +29,24 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function mix(start: number, end: number, amount: number) {
+  return start + (end - start) * amount;
+}
+
+function smoothStep(value: number) {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+const depthLanes = [
+  { x: 13, y: -3, exitX: 10, rotateY: -7, rotateX: 1.5 },
+  { x: -18, y: 1, exitX: -8, rotateY: 8, rotateX: -1 },
+  { x: 4, y: -7, exitX: -4, rotateY: -2, rotateX: 2.2 },
+  { x: 20, y: 5, exitX: 12, rotateY: -10, rotateX: -1.8 },
+  { x: -8, y: 6, exitX: -13, rotateY: 5, rotateX: 1.2 },
+  { x: 0, y: -1, exitX: 0, rotateY: 0, rotateX: 0 },
+];
+
 function timelineWindow(index: number) {
   const pointIndexes = index === 0 ? [0, 1] : [index - 1, index, index + 1];
 
@@ -75,7 +93,6 @@ export default function App() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioPausedByUserRef = useRef(false);
-  const cardRefs = useRef<Array<HTMLElement | null>>([]);
   const progressRef = useRef(0);
   const targetProgressRef = useRef(0);
   const animationFrameRef = useRef(0);
@@ -140,35 +157,24 @@ export default function App() {
   };
 
   const updateRibbon = (index: number) => {
-    const activeCard = cardRefs.current[index];
-    const poster = activeCard?.querySelector<HTMLElement>(".poster-frame");
-    const copy = activeCard?.querySelector<HTMLElement>(".card-copy");
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const y = height * (width < 760 ? 0.74 : 0.69);
+    const markers = timelineWindow(index).map((point) => {
+      const isLandingPair = index === 0;
+      const x =
+        point.role === "current"
+          ? width * 0.5
+          : point.role === "previous"
+            ? width * 0.22
+            : width * (isLandingPair ? 0.75 : 0.78);
 
-    if (!activeCard || !poster || !copy) {
-      return;
-    }
-
-    const posterRect = poster.getBoundingClientRect();
-    const copyRect = copy.getBoundingClientRect();
-    const y = posterRect.bottom + (copyRect.top - posterRect.bottom) / 2;
-    const viewportWidth = window.innerWidth;
-
-    const markers = timelineWindow(index)
-      .map((point) => {
-        const card = cardRefs.current[point.index];
-
-        if (!card) {
-          return null;
-        }
-
-        const rect = card.getBoundingClientRect();
-        return {
-          index: point.index,
-          role: point.role,
-          x: rect.left + rect.width / 2,
-        };
-      })
-      .filter((marker): marker is RibbonMarker => Boolean(marker));
+      return {
+        index: point.index,
+        role: point.role,
+        x: clamp(x, 28, width - 28),
+      };
+    });
 
     const current = markers.find((marker) => marker.role === "current");
 
@@ -178,19 +184,17 @@ export default function App() {
 
     const previous = markers.find((marker) => marker.role === "previous");
     const next = markers.find((marker) => marker.role === "next");
-    const fadeMargin = 24;
-    const lineLeft = previous ? (previous.x < fadeMargin ? 0 : previous.x) : current.x;
-    const lineRight = next ? (next.x > viewportWidth - fadeMargin ? viewportWidth : next.x) : current.x;
-    const visibleMarkers = markers.filter((marker) => marker.x >= -fadeMargin && marker.x <= viewportWidth + fadeMargin);
+    const lineLeft = previous?.x ?? current.x;
+    const lineRight = next?.x ?? current.x;
 
     setRibbonState({
       ready: true,
       y,
-      lineLeft: Math.max(0, Math.min(lineLeft, viewportWidth)),
-      lineRight: Math.max(0, Math.min(lineRight, viewportWidth)),
-      fadeLeft: Boolean(previous && previous.x < fadeMargin),
-      fadeRight: Boolean(next && next.x > viewportWidth - fadeMargin),
-      markers: visibleMarkers,
+      lineLeft: clamp(lineLeft, 0, width),
+      lineRight: clamp(lineRight, 0, width),
+      fadeLeft: Boolean(previous),
+      fadeRight: Boolean(next),
+      markers,
     });
   };
 
@@ -358,8 +362,6 @@ export default function App() {
   };
 
   const progressPercent = Math.round((activeIndex / maxIndex) * 100);
-  const cardTravel = viewportWidth < 760 ? viewportWidth * 0.5 : clamp(viewportWidth * 0.38, 430, 640);
-
   return (
     <main className="app">
       <div
@@ -460,34 +462,42 @@ export default function App() {
         <div className="timeline-viewport" ref={viewportRef}>
           <div className="timeline-track" ref={trackRef}>
             {timelineEntries.map((entry, index) => {
-              const offset = index - motionProgress;
-              const limitedOffset = clamp(offset, -2.4, 2.4);
-              const distance = Math.abs(offset);
-              const focusClass = distance < 0.5 ? "is-active" : distance < 1.5 ? "is-neighbor" : "is-distant";
-              const scale = clamp(1 - distance * 0.17, 0.56, 1);
-              const opacity = distance < 0.75 ? 1 : distance < 1.65 ? 0.42 : distance < 2.18 ? 0.14 : 0;
+              const local = motionProgress - index;
+              const distance = Math.abs(local);
+              const lane = depthLanes[index % depthLanes.length];
+              const approach = smoothStep((local + 1.08) / 1.08);
+              const pass = smoothStep(local / 0.82);
+              const focus = clamp(1 - distance / 0.72, 0, 1);
+              const enteringOpacity = smoothStep((local + 1.12) / 0.3);
+              const exitingOpacity = 1 - smoothStep((local - 0.62) / 0.28);
+              const opacity = clamp(enteringOpacity * exitingOpacity, 0, 1);
+              const horizontalDamping = viewportWidth < 760 ? 0.28 : 1;
+              const x = (mix(lane.x * 1.45, lane.x, approach) + lane.exitX * pass) * horizontalDamping;
+              const y = mix(lane.y + 8, lane.y, approach) - 10 * pass;
+              const z = local < 0 ? mix(-1280, 0, approach) : mix(0, 760, pass);
+              const scale = local < 0 ? mix(0.78, 1, approach) : mix(1, 1.08, pass);
+              const rotateY = mix(lane.rotateY * 1.4, lane.rotateY, approach) + lane.rotateY * pass * 0.8;
+              const rotateX = mix(lane.rotateX * 1.2, lane.rotateX, approach) - 2 * pass;
+              const blur = local < -0.45 ? mix(5, 0, approach) : mix(0, 6, pass);
+              const focusClass =
+                index === activeIndex ? "is-active" : local > -1.12 && local < 0.9 ? "is-neighbor" : "is-distant";
+              const isTextFlight = index > 0 && (index % 5 === 2 || index % 6 === 4);
               const focusStyle = {
                 opacity,
-                zIndex: Math.round(100 - distance * 12),
-                pointerEvents: distance < 0.9 ? "auto" : "none",
-                transform: `translate3d(calc(-50% + ${limitedOffset * cardTravel}px), ${Math.abs(limitedOffset) * 18}px, ${
-                  Math.abs(limitedOffset) * -240
-                }px) rotateY(${limitedOffset * -18}deg) rotateZ(${limitedOffset * 1.2}deg) scale(${scale})`,
-                filter:
-                  distance < 0.6
-                    ? "saturate(1.08) contrast(1.04) blur(0)"
-                    : `saturate(${clamp(1 - distance * 0.16, 0.62, 1)}) contrast(0.92) blur(${clamp(distance * 0.8, 0, 1.8)}px)`,
-              } as CSSProperties;
+                zIndex: Math.round(1000 + z),
+                pointerEvents: focus > 0.45 ? "auto" : "none",
+                transform: `translate3d(calc(-50% + ${x}vw), calc(-50% + ${y}vh), ${z}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`,
+                filter: `saturate(${mix(0.72, 1.14, approach)}) contrast(${mix(0.86, 1.05, focus)}) blur(${blur}px)`,
+                "--focus": focus,
+                "--pass": pass,
+              } as CSSProperties & Record<string, string | number>;
 
               return (
                 <article
                   key={entry.id}
-                  className={`timeline-card ${focusClass}`}
+                  className={`timeline-card ${focusClass} ${isTextFlight ? "is-text-flight" : "is-image-flight"}`}
                   data-entry-id={entry.id}
                   style={focusStyle}
-                  ref={(node) => {
-                    cardRefs.current[index] = node;
-                  }}
                   aria-label={`${entry.title} timeline event`}
                 >
                   <figure className="poster-frame">
