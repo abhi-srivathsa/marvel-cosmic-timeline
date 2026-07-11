@@ -1,13 +1,21 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Search, Volume2, VolumeX, X } from "lucide-react";
 import { posterImages } from "./data/posterImages";
+import { storyTimelineEntries, type StoryTimelineEntry } from "./data/storyTimeline";
 import { timelineEntries, type TimelineEntry } from "./data/timeline";
+
+type ViewMode = "titles" | "story";
+type TimelineViewEntry =
+  | TimelineEntry
+  | (StoryTimelineEntry & {
+      wikiPage?: string;
+    });
 
 function normalize(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function entryMatches(entry: TimelineEntry, query: string) {
+function entryMatches(entry: TimelineViewEntry, query: string) {
   const normalizedQuery = normalize(query);
 
   if (!normalizedQuery) {
@@ -15,14 +23,24 @@ function entryMatches(entry: TimelineEntry, query: string) {
   }
 
   const haystack = normalize(
-    [entry.title, entry.medium, entry.yearLabel, entry.chapter, entry.event, entry.impact, ...entry.tags].join(" "),
+    [
+      entry.title,
+      entry.medium,
+      entry.yearLabel,
+      entry.chapter,
+      entry.event,
+      entry.impact,
+      ...entry.tags,
+      ...("connections" in entry ? entry.connections : []),
+    ].join(" "),
   );
 
   return normalizedQuery.split(" ").every((part) => haystack.includes(part));
 }
 
-function posterFor(entry: TimelineEntry) {
-  return posterImages[entry.id as keyof typeof posterImages];
+function posterFor(entry: TimelineViewEntry) {
+  const posterId = "posterId" in entry ? entry.posterId : entry.id;
+  return posterImages[posterId as keyof typeof posterImages] ?? posterImages["the-avengers"];
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -38,6 +56,7 @@ const desktopRenderRange = 4;
 const mobileRenderRange = 2;
 
 export default function App() {
+  const [viewMode, setViewMode] = useState<ViewMode>("titles");
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [motionProgress, setMotionProgress] = useState(0);
@@ -55,35 +74,36 @@ export default function App() {
   const animationFrameRef = useRef(0);
   const snapTimeoutRef = useRef<number | null>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  const activeEntry = timelineEntries[activeIndex];
-  const maxIndex = timelineEntries.length - 1;
+  const viewEntries: TimelineViewEntry[] = viewMode === "story" ? storyTimelineEntries : timelineEntries;
+  const maxIndex = Math.max(viewEntries.length - 1, 0);
+  const activeEntry = viewEntries[clamp(activeIndex, 0, maxIndex)] ?? timelineEntries[0];
   const isMobile = viewportWidth < 760;
   const renderedEntries = useMemo(() => {
     const renderRange = isMobile ? mobileRenderRange : desktopRenderRange;
     const motionIndex = Math.round(motionProgress);
 
-    return timelineEntries
+    return viewEntries
       .map((entry, index) => ({ entry, index }))
       .filter(
         ({ index }) =>
           Math.abs(index - activeIndex) <= renderRange ||
           Math.abs(index - motionIndex) <= renderRange,
       );
-  }, [activeIndex, isMobile, motionProgress]);
+  }, [activeIndex, isMobile, motionProgress, viewEntries]);
 
   const suggestions = useMemo(() => {
     if (!query.trim()) {
       return [];
     }
 
-    return timelineEntries
+    return viewEntries
       .map((entry, index) => ({ entry, index }))
       .filter(({ entry }) => entryMatches(entry, query))
       .slice(0, 8);
-  }, [query]);
+  }, [query, viewEntries]);
 
   const scrollToIndex = (index: number) => {
-    const nextIndex = clamp(index, 0, maxIndex);
+    const nextIndex = clamp(index, 0, viewEntries.length - 1);
     const jumpDistance = Math.abs(nextIndex - progressRef.current);
     targetProgressRef.current = nextIndex;
     setActiveIndex(nextIndex);
@@ -177,6 +197,18 @@ export default function App() {
 
     let touchStartY = 0;
     let touchStartX = 0;
+    let pointerStartY = 0;
+    let pointerStartX = 0;
+    let pointerDragging = false;
+    let mouseStartY = 0;
+    let mouseStartX = 0;
+    let mouseDragging = false;
+
+    const targetAllowsTimelineGesture = (target: EventTarget | null) => {
+      const element = target instanceof Element ? target : null;
+
+      return !element?.closest(".search-area, .view-switch, .sound-toggle, .timeline-dot");
+    };
 
     const onWheel = (event: WheelEvent) => {
       const target = event.target instanceof Element ? event.target : null;
@@ -237,6 +269,86 @@ export default function App() {
       }
     };
 
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        event.pointerType === "touch" ||
+        !targetAllowsTimelineGesture(event.target) ||
+        (event.pointerType === "mouse" && event.button !== 0)
+      ) {
+        return;
+      }
+
+      pointerStartY = event.clientY;
+      pointerStartX = event.clientX;
+      pointerDragging = true;
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!pointerDragging) {
+        return;
+      }
+
+      const deltaY = pointerStartY - event.clientY;
+      const deltaX = pointerStartX - event.clientX;
+      const dominantDelta = Math.abs(deltaY) > Math.abs(deltaX) ? deltaY : deltaX;
+
+      if (Math.abs(dominantDelta) < 2) {
+        return;
+      }
+
+      event.preventDefault();
+      targetProgressRef.current = clamp(targetProgressRef.current + dominantDelta / 300, 0, maxIndex);
+      pointerStartY = event.clientY;
+      pointerStartX = event.clientX;
+      queueSnapToEvent();
+
+      if (!animationFrameRef.current) {
+        animationFrameRef.current = window.requestAnimationFrame(animateProgress);
+      }
+    };
+
+    const onPointerEnd = () => {
+      pointerDragging = false;
+    };
+
+    const onMouseDown = (event: MouseEvent) => {
+      if (pointerDragging || !targetAllowsTimelineGesture(event.target) || event.button !== 0) {
+        return;
+      }
+
+      mouseStartY = event.clientY;
+      mouseStartX = event.clientX;
+      mouseDragging = true;
+    };
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (!mouseDragging || pointerDragging) {
+        return;
+      }
+
+      const deltaY = mouseStartY - event.clientY;
+      const deltaX = mouseStartX - event.clientX;
+      const dominantDelta = Math.abs(deltaY) > Math.abs(deltaX) ? deltaY : deltaX;
+
+      if (Math.abs(dominantDelta) < 2) {
+        return;
+      }
+
+      event.preventDefault();
+      targetProgressRef.current = clamp(targetProgressRef.current + dominantDelta / 300, 0, maxIndex);
+      mouseStartY = event.clientY;
+      mouseStartX = event.clientX;
+      queueSnapToEvent();
+
+      if (!animationFrameRef.current) {
+        animationFrameRef.current = window.requestAnimationFrame(animateProgress);
+      }
+    };
+
+    const onMouseEnd = () => {
+      mouseDragging = false;
+    };
+
     const onResize = () => {
       setViewportWidth(window.innerWidth);
     };
@@ -244,6 +356,13 @@ export default function App() {
     window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
+    window.addEventListener("pointerup", onPointerEnd);
+    window.addEventListener("pointercancel", onPointerEnd);
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseEnd);
     window.addEventListener("resize", onResize);
 
     return () => {
@@ -256,6 +375,13 @@ export default function App() {
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerEnd);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseEnd);
       window.removeEventListener("resize", onResize);
     };
   }, [maxIndex]);
@@ -293,28 +419,44 @@ export default function App() {
       }
 
       if (event.key === "ArrowRight") {
-        scrollToIndex(clamp(activeIndex + 1, 0, timelineEntries.length - 1));
+        scrollToIndex(clamp(activeIndex + 1, 0, maxIndex));
       }
 
       if (event.key === "ArrowLeft") {
-        scrollToIndex(clamp(activeIndex - 1, 0, timelineEntries.length - 1));
+        scrollToIndex(clamp(activeIndex - 1, 0, maxIndex));
       }
     };
 
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, [activeIndex]);
+  }, [activeIndex, maxIndex]);
 
   const selectSuggestion = (index: number) => {
     scrollToIndex(index);
-    setQuery(timelineEntries[index].title);
+    setQuery(viewEntries[index].title);
     setSuggestionsOpen(false);
     searchRef.current?.blur();
   };
 
-  const progressPercent = Math.round((activeIndex / maxIndex) * 100);
+  const changeViewMode = (mode: ViewMode) => {
+    if (mode === viewMode) {
+      return;
+    }
+
+    setViewMode(mode);
+    setActiveIndex(0);
+    setQuery("");
+    setSuggestionsOpen(false);
+    targetProgressRef.current = 0;
+    progressRef.current = 0;
+    setMotionProgress(0);
+    window.cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = 0;
+  };
+
+  const progressPercent = maxIndex > 0 ? Math.round((activeIndex / maxIndex) * 100) : 0;
   return (
-    <main className="app">
+    <main className={`app is-${viewMode}-view`}>
       <div
         className="background-art"
         aria-hidden="true"
@@ -348,7 +490,7 @@ export default function App() {
                 ref={searchRef}
                 value={query}
                 type="search"
-                aria-label="Search by Marvel event, movie, or TV show"
+                aria-label="Search by Marvel story, event, movie, or TV show"
                 placeholder="Search timeline"
                 onChange={(event) => {
                   setQuery(event.target.value);
@@ -408,6 +550,26 @@ export default function App() {
 
         <div className="timeline-heading" aria-label="Timeline overview">
           <h1>Marvel Cosmic timeline</h1>
+          <div className="view-switch" role="tablist" aria-label="Timeline view">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={viewMode === "titles"}
+              className={viewMode === "titles" ? "is-active" : ""}
+              onClick={() => changeViewMode("titles")}
+            >
+              Titles
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={viewMode === "story"}
+              className={viewMode === "story" ? "is-active" : ""}
+              onClick={() => changeViewMode("story")}
+            >
+              Story
+            </button>
+          </div>
         </div>
 
         <div className="timeline-viewport" ref={viewportRef}>
@@ -459,6 +621,13 @@ export default function App() {
                     <p className="chapter">{entry.chapter}</p>
                     <p className="event-text">{entry.event}</p>
                     <p className="impact">{entry.impact}</p>
+                    {"connections" in entry ? (
+                      <div className="connection-chain" aria-label="Connected titles">
+                        {entry.connections.map((connection) => (
+                          <span key={connection}>{connection}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </article>
               );
@@ -469,7 +638,7 @@ export default function App() {
         <div className="timeline-axis" aria-label="Timeline entries">
           <div className="timeline-axis-line" aria-hidden="true" />
           <div className="timeline-dots">
-            {timelineEntries.map((entry, index) => {
+            {viewEntries.map((entry, index) => {
               const local = index - motionProgress;
               const pathDepth = clamp((local + 0.8) / (isMobile ? 8 : 11), 0, 1);
               const easedDepth = smoothStep(pathDepth);

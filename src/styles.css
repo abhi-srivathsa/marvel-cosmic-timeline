@@ -291,7 +291,7 @@ a {
 
 .timeline-heading {
   position: absolute;
-  z-index: 8;
+  z-index: 28;
   top: calc(var(--header-height) + 2px);
   left: 50%;
   width: min(860px, calc(100% - 36px));
@@ -308,6 +308,48 @@ a {
   line-height: 0.95;
   letter-spacing: 0;
   text-shadow: 0 22px 70px rgba(0, 0, 0, 0.62);
+}
+
+.view-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(86px, 1fr));
+  gap: 3px;
+  margin-top: 16px;
+  padding: 3px;
+  pointer-events: auto;
+  background: rgba(6, 6, 12, 0.58);
+  border: 1px solid rgba(247, 244, 239, 0.16);
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+}
+
+.view-switch button {
+  min-width: 0;
+  padding: 8px 15px;
+  color: rgba(247, 244, 239, 0.58);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.66rem;
+  font-weight: 760;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  transition:
+    color 180ms ease,
+    background 180ms ease;
+}
+
+.view-switch button:hover,
+.view-switch button:focus-visible {
+  color: var(--bone);
+  outline: none;
+}
+
+.view-switch button.is-active {
+  color: #07070b;
+  background: var(--bone);
 }
 
 .timeline-viewport {
@@ -470,6 +512,59 @@ a {
   line-height: 1.58;
 }
 
+.connection-chain {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px 10px;
+  max-width: 520px;
+  margin: 15px auto 0;
+  color: rgba(247, 244, 239, 0.6);
+}
+
+.connection-chain span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.58rem;
+  font-weight: 720;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  white-space: nowrap;
+}
+
+.connection-chain span:not(:last-child)::after {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 1px;
+  background: rgba(215, 189, 131, 0.38);
+}
+
+.is-story-view .timeline-card {
+  width: min(540px, 38vw);
+}
+
+.is-story-view .poster-frame {
+  width: clamp(160px, min(14vw, 29vh), 220px);
+}
+
+.is-story-view .card-copy {
+  top: 77%;
+  width: min(100%, 520px);
+  max-width: 520px;
+}
+
+.is-story-view .card-copy h2 {
+  font-size: clamp(1.65rem, 2.55vw, 3.35rem);
+  line-height: 0.98;
+}
+
+.is-story-view .chapter {
+  color: rgba(247, 244, 239, 0.84);
+}
+
 .timeline-axis {
   position: fixed;
   z-index: 12;
@@ -601,6 +696,18 @@ a {
     white-space: nowrap;
   }
 
+  .view-switch {
+    grid-template-columns: repeat(2, minmax(72px, 1fr));
+    margin-top: 10px;
+    padding: 2px;
+  }
+
+  .view-switch button {
+    padding: 7px 10px;
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+  }
+
   .era-backdrop {
     padding-top: 0;
   }
@@ -681,6 +788,41 @@ a {
     display: none;
   }
 
+  .is-story-view .timeline-card {
+    width: min(78vw, 320px);
+  }
+
+  .is-story-view .poster-frame {
+    width: min(34vw, 138px);
+  }
+
+  .is-story-view .card-copy {
+    top: 77%;
+    max-width: 315px;
+  }
+
+  .is-story-view .card-copy h2 {
+    font-size: clamp(1.28rem, 6.3vw, 1.9rem);
+    line-height: 1;
+  }
+
+  .connection-chain {
+    gap: 4px 7px;
+    max-height: 47px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+
+  .connection-chain span {
+    gap: 7px;
+    font-size: 0.5rem;
+    letter-spacing: 0.09em;
+  }
+
+  .connection-chain span:not(:last-child)::after {
+    width: 11px;
+  }
+
   .timeline-dot {
     width: 24px;
   }
@@ -721,6 +863,10 @@ a {
     font-size: clamp(1.08rem, 5.4vw, 1.45rem);
   }
 
+  .view-switch {
+    margin-top: 8px;
+  }
+
   .timeline-card {
     height: min(60vh, calc(100vh - var(--header-height) - 62px));
   }
@@ -745,6 +891,10 @@ a {
   }
 
   .chapter {
+    display: none;
+  }
+
+  .connection-chain {
     display: none;
   }
 }
