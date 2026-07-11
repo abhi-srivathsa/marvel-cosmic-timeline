@@ -29,10 +29,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function mix(start: number, end: number, amount: number) {
-  return start + (end - start) * amount;
-}
-
 function smoothStep(value: number) {
   const t = clamp(value, 0, 1);
   return t * t * (3 - 2 * t);
@@ -40,15 +36,8 @@ function smoothStep(value: number) {
 
 const desktopRenderRange = 4;
 const mobileRenderRange = 2;
-
-const depthLanes = [
-  { x: 13, y: -3, exitX: 10, rotateY: -7, rotateX: 1.5 },
-  { x: -18, y: 1, exitX: -8, rotateY: 8, rotateX: -1 },
-  { x: 4, y: -7, exitX: -4, rotateY: -2, rotateX: 2.2 },
-  { x: 20, y: 5, exitX: 12, rotateY: -10, rotateX: -1.8 },
-  { x: -8, y: 6, exitX: -13, rotateY: 5, rotateX: 1.2 },
-  { x: 0, y: -1, exitX: 0, rotateY: 0, rotateX: 0 },
-];
+const desktopDotStep = 54;
+const mobileDotStep = 34;
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -66,10 +55,12 @@ export default function App() {
   const progressRef = useRef(0);
   const targetProgressRef = useRef(0);
   const animationFrameRef = useRef(0);
+  const snapTimeoutRef = useRef<number | null>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const activeEntry = timelineEntries[activeIndex];
   const maxIndex = timelineEntries.length - 1;
   const isMobile = viewportWidth < 760;
+  const dotStep = isMobile ? mobileDotStep : desktopDotStep;
   const renderedEntries = useMemo(() => {
     const renderRange = isMobile ? mobileRenderRange : desktopRenderRange;
     const motionIndex = Math.round(motionProgress);
@@ -111,6 +102,21 @@ export default function App() {
     if (!animationFrameRef.current) {
       animationFrameRef.current = window.requestAnimationFrame(animateProgress);
     }
+  };
+
+  const queueSnapToEvent = () => {
+    if (snapTimeoutRef.current) {
+      window.clearTimeout(snapTimeoutRef.current);
+    }
+
+    snapTimeoutRef.current = window.setTimeout(() => {
+      snapTimeoutRef.current = null;
+      targetProgressRef.current = clamp(Math.round(targetProgressRef.current), 0, maxIndex);
+
+      if (!animationFrameRef.current) {
+        animationFrameRef.current = window.requestAnimationFrame(animateProgress);
+      }
+    }, 140);
   };
 
   const playBackgroundAudio = async () => {
@@ -190,6 +196,7 @@ export default function App() {
 
       event.preventDefault();
       targetProgressRef.current = clamp(targetProgressRef.current + delta / 620, 0, maxIndex);
+      queueSnapToEvent();
 
       if (!animationFrameRef.current) {
         animationFrameRef.current = window.requestAnimationFrame(animateProgress);
@@ -226,6 +233,7 @@ export default function App() {
       targetProgressRef.current = clamp(targetProgressRef.current + dominantDelta / 260, 0, maxIndex);
       touchStartY = touch.clientY;
       touchStartX = touch.clientX;
+      queueSnapToEvent();
 
       if (!animationFrameRef.current) {
         animationFrameRef.current = window.requestAnimationFrame(animateProgress);
@@ -242,6 +250,10 @@ export default function App() {
     window.addEventListener("resize", onResize);
 
     return () => {
+      if (snapTimeoutRef.current) {
+        window.clearTimeout(snapTimeoutRef.current);
+        snapTimeoutRef.current = null;
+      }
       window.cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = 0;
       window.removeEventListener("wheel", onWheel);
@@ -406,35 +418,27 @@ export default function App() {
             {renderedEntries.map(({ entry, index }) => {
               const local = motionProgress - index;
               const distance = Math.abs(local);
-              const lane = depthLanes[index % depthLanes.length];
-              const approach = smoothStep((local + 1.08) / 1.08);
-              const pass = smoothStep(local / 0.82);
+              const enterSide = index % 2 === 0 ? -1 : 1;
               const focus = clamp(1 - distance / 0.72, 0, 1);
-              const enteringOpacity = smoothStep((local + 1.12) / 0.3);
-              const exitingOpacity = 1 - smoothStep((local - 0.46) / 0.22);
-              const opacity = clamp(enteringOpacity * exitingOpacity, 0, 1);
-              const x = isMobile ? 0 : mix(lane.x * 1.45, lane.x, approach) + lane.exitX * pass;
-              const y = isMobile ? mix(7, 3.5, approach) - 2 * pass : mix(lane.y + 8, lane.y, approach) - 10 * pass;
-              const z = local < 0 ? mix(isMobile ? -760 : -1280, 0, approach) : mix(0, isMobile ? 420 : 620, pass);
-              const scale = local < 0 ? mix(isMobile ? 0.84 : 0.78, 1, approach) : mix(1, isMobile ? 1.01 : 1.04, pass);
-              const rotateY = isMobile ? 0 : mix(lane.rotateY * 1.4, lane.rotateY, approach) + lane.rotateY * pass * 0.8;
-              const rotateX = isMobile ? -0.6 * pass : mix(lane.rotateX * 1.2, lane.rotateX, approach) - 2 * pass;
+              const slideDistance = isMobile ? 86 : 68;
+              const x = clamp(local, -1.2, 1.2) * -enterSide * slideDistance;
+              const scale = 1 - smoothStep(distance / 1.05) * (isMobile ? 0.08 : 0.12);
+              const opacity = clamp(1 - smoothStep((distance - 0.04) / 0.9), 0, 1);
               const focusClass =
-                index === activeIndex ? "is-active" : local > -1.12 && local < 0.9 ? "is-neighbor" : "is-distant";
-              const isTextFlight = !isMobile && index > 0 && (index % 5 === 2 || index % 6 === 4);
+                index === activeIndex ? "is-active" : local > -1.2 && local < 1.2 ? "is-neighbor" : "is-distant";
               const focusStyle = {
                 opacity,
-                zIndex: Math.round(1000 + z),
+                zIndex: Math.round(1000 - distance * 20),
                 pointerEvents: focus > 0.45 ? "auto" : "none",
-                transform: `translate3d(calc(-50% + ${x}vw), calc(-50% + ${y}vh), ${z}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`,
+                transform: `translate3d(calc(-50% + ${x}vw), -50%, 0) scale(${scale})`,
                 "--focus": focus,
-                "--pass": pass,
+                "--slide-side": enterSide,
               } as CSSProperties & Record<string, string | number>;
 
               return (
                 <article
                   key={entry.id}
-                  className={`timeline-card ${focusClass} ${isTextFlight ? "is-text-flight" : "is-image-flight"}`}
+                  className={`timeline-card ${focusClass} ${index % 2 === 0 ? "is-left-slide" : "is-right-slide"}`}
                   data-entry-id={entry.id}
                   style={focusStyle}
                   aria-label={`${entry.title} timeline event`}
@@ -454,6 +458,35 @@ export default function App() {
                     <p className="impact">{entry.impact}</p>
                   </div>
                 </article>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="timeline-axis" aria-label="Timeline entries">
+          <div className="timeline-axis-line" aria-hidden="true" />
+          <div
+            className="timeline-dots"
+            style={{ transform: `translate3d(${-motionProgress * dotStep}px, -50%, 0)` }}
+          >
+            {timelineEntries.map((entry, index) => {
+              const distance = Math.abs(motionProgress - index);
+              const isActive = index === activeIndex;
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className={`timeline-dot ${isActive ? "is-active" : ""}`}
+                  style={{
+                    left: `${index * dotStep}px`,
+                    opacity: clamp(1 - distance / (isMobile ? 10 : 15), 0.28, 1),
+                    "--dot-scale": isActive ? 1.75 : clamp(1.18 - distance / 7, 0.58, 1),
+                  } as CSSProperties & { "--dot-scale": number }}
+                  aria-label={`Go to ${entry.title}`}
+                  onClick={() => scrollToIndex(index)}
+                >
+                  <span />
+                </button>
               );
             })}
           </div>
