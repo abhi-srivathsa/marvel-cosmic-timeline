@@ -36,8 +36,6 @@ function smoothStep(value: number) {
 
 const desktopRenderRange = 4;
 const mobileRenderRange = 2;
-const desktopDotStep = 54;
-const mobileDotStep = 34;
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -60,7 +58,6 @@ export default function App() {
   const activeEntry = timelineEntries[activeIndex];
   const maxIndex = timelineEntries.length - 1;
   const isMobile = viewportWidth < 760;
-  const dotStep = isMobile ? mobileDotStep : desktopDotStep;
   const renderedEntries = useMemo(() => {
     const renderRange = isMobile ? mobileRenderRange : desktopRenderRange;
     const motionIndex = Math.round(motionProgress);
@@ -420,17 +417,23 @@ export default function App() {
               const distance = Math.abs(local);
               const enterSide = index % 2 === 0 ? -1 : 1;
               const focus = clamp(1 - distance / 0.72, 0, 1);
-              const slideDistance = isMobile ? 86 : 68;
-              const x = clamp(local, -1.2, 1.2) * -enterSide * slideDistance;
-              const scale = 1 - smoothStep(distance / 1.05) * (isMobile ? 0.08 : 0.12);
-              const opacity = clamp(1 - smoothStep((distance - 0.04) / 0.9), 0, 1);
+              const approach = smoothStep((local + 1.35) / 1.35);
+              const pass = smoothStep(local / 1.05);
+              const sideDistance = isMobile ? 8 : 28;
+              const passDistance = isMobile ? 8 : 17;
+              const x = enterSide * (approach * sideDistance + pass * passDistance);
+              const y = local < 0 ? -18 + approach * 20 : 2 + pass * (isMobile ? 24 : 28);
+              const scale = local < 0 ? 0.42 + approach * 0.58 : 1 + pass * 0.16;
+              const enteringOpacity = smoothStep((local + 1.28) / 0.58);
+              const exitingOpacity = 1 - smoothStep((local - 0.76) / 0.42);
+              const opacity = clamp(enteringOpacity * exitingOpacity, 0, 1);
               const focusClass =
-                index === activeIndex ? "is-active" : local > -1.2 && local < 1.2 ? "is-neighbor" : "is-distant";
+                index === activeIndex ? "is-active" : local > -1.28 && local < 1.08 ? "is-neighbor" : "is-distant";
               const focusStyle = {
                 opacity,
-                zIndex: Math.round(1000 - distance * 20),
+                zIndex: index === activeIndex ? 1200 : Math.round(900 - distance * 20 + (local > 0 ? 40 : 0)),
                 pointerEvents: focus > 0.45 ? "auto" : "none",
-                transform: `translate3d(calc(-50% + ${x}vw), -50%, 0) scale(${scale})`,
+                transform: `translate3d(calc(-50% + ${x}vw), calc(-50% + ${y}vh), 0) scale(${scale})`,
                 "--focus": focus,
                 "--slide-side": enterSide,
               } as CSSProperties & Record<string, string | number>;
@@ -465,22 +468,25 @@ export default function App() {
 
         <div className="timeline-axis" aria-label="Timeline entries">
           <div className="timeline-axis-line" aria-hidden="true" />
-          <div
-            className="timeline-dots"
-            style={{ transform: `translate3d(${-motionProgress * dotStep}px, -50%, 0)` }}
-          >
+          <div className="timeline-dots">
             {timelineEntries.map((entry, index) => {
-              const distance = Math.abs(motionProgress - index);
+              const local = index - motionProgress;
+              const pathDepth = clamp((local + 0.8) / (isMobile ? 8 : 11), 0, 1);
+              const easedDepth = smoothStep(pathDepth);
+              const dotTop = (isMobile ? 73 : 76) - easedDepth * (isMobile ? 42 : 48);
+              const distance = Math.abs(local);
               const isActive = index === activeIndex;
+              const visible = local > -1.15 && local < (isMobile ? 9 : 13);
               return (
                 <button
                   key={entry.id}
                   type="button"
                   className={`timeline-dot ${isActive ? "is-active" : ""}`}
                   style={{
-                    left: `${index * dotStep}px`,
-                    opacity: clamp(1 - distance / (isMobile ? 10 : 15), 0.28, 1),
-                    "--dot-scale": isActive ? 1.75 : clamp(1.18 - distance / 7, 0.58, 1),
+                    top: `${dotTop}%`,
+                    opacity: visible ? clamp(1 - pathDepth * 0.74 - Math.max(-local - 0.2, 0) * 0.55, 0.18, 1) : 0,
+                    zIndex: Math.round(300 - pathDepth * 180),
+                    "--dot-scale": isActive ? 1.95 : clamp(1.25 - pathDepth * 0.88, 0.34, 1),
                   } as CSSProperties & { "--dot-scale": number }}
                   aria-label={`Go to ${entry.title}`}
                   onClick={() => scrollToIndex(index)}

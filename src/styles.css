@@ -312,12 +312,13 @@ a {
 
 .timeline-viewport {
   position: relative;
-  z-index: 6;
+  z-index: 18;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
   scrollbar-width: none;
   touch-action: none;
+  pointer-events: none;
 }
 
 .timeline-viewport::-webkit-scrollbar {
@@ -328,14 +329,16 @@ a {
   position: relative;
   width: 100%;
   height: 100%;
+  perspective: 960px;
+  perspective-origin: 50% 38%;
 }
 
 .timeline-card {
   position: absolute;
-  top: 52%;
+  top: 54%;
   left: 50%;
-  width: min(980px, 82vw);
-  height: min(640px, 72vh);
+  width: min(480px, 34vw);
+  height: min(610px, 70vh);
   transform-origin: center center;
   contain: layout paint style;
   will-change: transform, opacity;
@@ -344,9 +347,9 @@ a {
 
 .poster-frame {
   position: absolute;
-  top: 33%;
+  top: 32%;
   left: 50%;
-  width: clamp(190px, min(19vw, 34vh), 270px);
+  width: clamp(170px, min(16vw, 31vh), 245px);
   aspect-ratio: 2 / 3;
   margin: 0;
   overflow: hidden;
@@ -396,10 +399,10 @@ a {
 
 .card-copy {
   position: absolute;
-  top: 88%;
+  top: 76%;
   left: 50%;
-  width: min(760px, 78vw);
-  max-width: 760px;
+  width: min(100%, 440px);
+  max-width: 440px;
   margin: 0;
   text-align: center;
   transform: translate3d(-50%, -50%, 0);
@@ -427,16 +430,16 @@ a {
 .card-copy h2 {
   margin: 0;
   color: var(--bone);
-  font-size: clamp(2.6rem, 5vw, 5.9rem);
+  font-size: clamp(1.9rem, 3.1vw, 4.15rem);
   font-weight: 780;
-  line-height: 0.9;
+  line-height: 0.92;
   letter-spacing: 0;
   text-shadow: 0 24px 90px rgba(0, 0, 0, 0.68);
 }
 
 .event-text,
 .impact {
-  max-width: 620px;
+  max-width: 420px;
   margin-inline: auto;
 }
 
@@ -469,45 +472,50 @@ a {
 
 .timeline-axis {
   position: fixed;
-  z-index: 16;
-  top: 60%;
-  left: 0;
-  right: 0;
-  height: 44px;
+  z-index: 12;
+  inset: 0;
+  height: auto;
   overflow: hidden;
+  perspective: 900px;
+  perspective-origin: 50% 34%;
   pointer-events: none;
 }
 
 .timeline-axis-line {
   position: absolute;
-  top: 50%;
+  top: 29%;
   left: 0;
   right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(247, 244, 239, 0.2) 12%,
-    rgba(247, 244, 239, 0.54) 50%,
-    rgba(247, 244, 239, 0.2) 88%,
-    transparent
+  width: min(46vw, 620px);
+  height: 62vh;
+  margin-inline: auto;
+  background:
+    linear-gradient(180deg, rgba(247, 244, 239, 0), rgba(247, 244, 239, 0.62) 58%, rgba(247, 244, 239, 0.2))
+      50% 0 / 2px 100% no-repeat,
+    linear-gradient(166deg, transparent 49.6%, rgba(247, 244, 239, 0.22) 49.9%, transparent 50.35%) 0 0 / 50% 100%
+      no-repeat,
+    linear-gradient(194deg, transparent 49.6%, rgba(247, 244, 239, 0.22) 49.9%, transparent 50.35%) 100% 0 / 50%
+      100% no-repeat;
+  filter: drop-shadow(0 0 22px rgba(241, 31, 42, 0.24));
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 10%,
+    #000 76%,
+    rgba(0, 0, 0, 0.42) 92%,
+    transparent 100%
   );
-  box-shadow: 0 0 28px rgba(241, 31, 42, 0.2);
 }
 
 .timeline-dots {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
+  inset: 0;
   pointer-events: auto;
-  will-change: transform;
 }
 
 .timeline-dot {
   position: absolute;
-  top: 0;
+  left: 50%;
   display: grid;
   place-items: center;
   width: 28px;
@@ -515,6 +523,7 @@ a {
   padding: 0;
   background: transparent;
   transform: translate(-50%, -50%) scale(var(--dot-scale, 1));
+  will-change: top, opacity, transform;
 }
 
 .timeline-dot span {
@@ -601,15 +610,25 @@ a {
     white-space: normal;
   }
 
+  .timeline-track {
+    perspective: 780px;
+    perspective-origin: 50% 34%;
+  }
+
   .timeline-card {
-    width: min(92vw, 390px);
-    height: min(66vh, calc(100vh - var(--header-height) - 84px));
+    width: min(72vw, 300px);
+    height: min(62vh, calc(100vh - var(--header-height) - 84px));
     will-change: transform;
   }
 
   .timeline-axis {
-    top: 61%;
-    height: 40px;
+    perspective: 780px;
+  }
+
+  .timeline-axis-line {
+    top: 34%;
+    width: 74vw;
+    height: 54vh;
   }
 
   .background-art {
@@ -623,18 +642,18 @@ a {
   }
 
   .poster-frame {
-    top: 36%;
+    top: 32%;
     left: 50%;
-    width: min(46vw, 180px);
+    width: min(40vw, 156px);
   }
 
   .card-copy {
-    top: 82%;
+    top: 76%;
     left: 50%;
-    width: min(86vw, 330px);
-    max-width: 330px;
+    width: 100%;
+    max-width: 300px;
     text-align: center;
-    transform: translate3d(-50%, -50%, 70px);
+    transform: translate3d(-50%, -50%, 0);
   }
 
   .event-meta {
@@ -645,7 +664,7 @@ a {
   }
 
   .card-copy h2 {
-    font-size: clamp(1.75rem, 8.4vw, 2.65rem);
+    font-size: clamp(1.6rem, 7.5vw, 2.35rem);
     line-height: 0.94;
     text-wrap: balance;
     overflow-wrap: break-word;
@@ -703,17 +722,22 @@ a {
   }
 
   .timeline-card {
-    height: min(66vh, calc(100vh - var(--header-height) - 62px));
+    height: min(60vh, calc(100vh - var(--header-height) - 62px));
+  }
+
+  .timeline-axis-line {
+    top: 36%;
+    height: 51vh;
   }
 
   .poster-frame {
-    top: 35%;
-    width: min(40vw, 150px);
+    top: 31%;
+    width: min(35vw, 132px);
   }
 
   .card-copy {
-    top: 84%;
-    width: min(88vw, 320px);
+    top: 76%;
+    width: 100%;
   }
 
   .card-copy h2 {
